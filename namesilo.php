@@ -2197,7 +2197,7 @@ class Namesilo extends Module
 
         $response = $result->response();
 
-        $available = isset($response->available->{'domain'}) && $response->available->{'domain'} == $domain;
+        $available = isset($response->available->{'domain'}) && $response->available->domain->{'0'} == $domain;
 
         return $available;
     }

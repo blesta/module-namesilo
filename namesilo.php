@@ -2221,11 +2221,21 @@ class Namesilo extends Module
             return false;
         }
 
-        $response = $result->response();
+        $responseXML = $result->responseXML();
+        $xpath_result = $responseXML->xpath("//available/domain[text()='" . $domain . "']");
 
-        $available = isset($response->available->{'domain'}) && $response->available->{'domain'} == $domain;
+        if (empty($xpath_result)) {
+            // The domain was not in the available element, its not available.
+            return false;
+        }
 
-        return $available;
+        $attributes = $xpath_result[0]->attributes();
+        if (isset($attributes->premium) && $attributes->premium == "1") {
+            $this->Input->setErrors(['premium' => Language::_('Namesilo.!error.permium_domain', true, $domain)]);
+            return false;
+        }
+
+        return true;
     }
 
     /**

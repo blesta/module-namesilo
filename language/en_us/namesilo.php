@@ -157,7 +157,7 @@ $lang['Namesilo.!error.key.valid_connection'] = 'The user and key combination ap
 $lang['Namesilo.!error.portfolio.valid_portfolio'] = 'The portfolio entered does not appear valid.  Are you sure it has been created in your Namesilo account?';
 $lang['Namesilo.!error.payment_id.valid_format'] = 'Payment ID must be either blank or numeric only.';
 $lang['Namesilo.!error.epp.empty'] = 'Domain transfers require an EPP code to be entered.';
-
+$lang['Namesilo.!error.permium_domain'] = '%1$s is a premium domain. Please contact us for more information.'; // %1$s is the premium domain;
 
 // Notices
 $lang['Namesilo.notice.StatusPending'] = 'This order is pending. The feature you are trying to access will become available once the order has been activated successfully.';

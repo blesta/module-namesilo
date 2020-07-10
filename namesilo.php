@@ -2231,7 +2231,7 @@ class Namesilo extends Module
 
         $attributes = $xpath_result[0]->attributes();
         if (isset($attributes->premium) && $attributes->premium == "1") {
-            $this->Input->setErrors(['premium' => Language::_('Namesilo.!error.permium_domain', true, $domain)]);
+            $this->Input->setErrors(['availability' => ['premium' => Language::_('Namesilo.!error.permium_domain', true, $domain)]]);
             return false;
         }
 

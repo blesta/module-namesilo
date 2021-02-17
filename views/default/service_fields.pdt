@@ -1,5 +1,5 @@
     <?php
-    if ($this->Html->ifSet($fields) && !empty($fields)) {
+    if ((isset($fields) ? $fields : null) && !empty($fields)) {
         ?>
         <ul class="no_border">
             <?php

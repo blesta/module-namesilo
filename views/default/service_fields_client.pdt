@@ -1,7 +1,7 @@
     <?php
-    if ($this->Html->ifSet($fields) && !empty($fields)) {
+    if ((isset($fields) ? $fields : null) && !empty($fields)) {
         ?>
-        <div id="<?php echo $this->Html->safe($this->Html->concat('_', $this->Html->ifSet($module->class), $this->Html->ifSet($module->id))); ?>">
+        <div id="<?php echo $this->Html->safe($this->Html->concat('_', (isset($module->class) ? $module->class : null), (isset($module->id) ? $module->id : null))); ?>">
             <?php
             $i = 0;
             foreach ($fields as $field) {

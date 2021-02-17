@@ -72,7 +72,7 @@
                 var service_id = service_ids.pop();
                 if(service_id !== undefined) {
                     $.getJSON(
-                        '<?php echo $this->Html->ifSet($vars->renew_info_url); ?>',
+                        '<?php echo (isset($vars->renew_info_url) ? $vars->renew_info_url : null); ?>',
                         {
                             'service_id': service_id,
                             'action': 'get_renew_info'

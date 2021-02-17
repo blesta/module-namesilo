@@ -3,7 +3,7 @@
     </div>
     <div id="domain-hosts">
         <?php
-        $this->Form->create($this->base_uri . 'clients/servicetab/' . $this->Html->ifSet($client_id) . '/' . $this->Html->ifSet($service_id) . '/tabHosts/');
+        $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabHosts/');
         ?>
         <table class="table">
             <?php
@@ -22,7 +22,7 @@
                     ?>
                     <tr>
                         <td><?php echo $index == 0 ? $host->host . '.' . $domain : false; ?></td>
-                        <td><?php $this->Form->fieldText('hosts[' . $this->Html->ifSet($host->host) . '][]', $ip); ?></td>
+                        <td><?php $this->Form->fieldText('hosts[' . (isset($host->host) ? $host->host : null) . '][]', $ip); ?></td>
                     </tr>
                     <?php
                 }
@@ -30,7 +30,7 @@
                     ?>
                     <tr>
                         <td></td>
-                        <td><?php $this->Form->fieldText('hosts[' . $this->Html->ifSet($host->host) . '][]'); ?></td>
+                        <td><?php $this->Form->fieldText('hosts[' . (isset($host->host) ? $host->host : null) . '][]'); ?></td>
                     </tr>
                     <?php
                 }

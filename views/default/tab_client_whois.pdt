@@ -68,7 +68,7 @@
                                             $input->params['attributes']['class'] = 'form-control';
                                         }
 
-                                        $input->params['attributes']['placeholder'] = $this->Html->ifSet($field->params['name']);
+                                        $input->params['attributes']['placeholder'] = (isset($field->params['name']) ? $field->params['name'] : null);
 
                                         // Draw the primary label/field
                                         call_user_func_array([$this->Form, $field->type], $field->params);

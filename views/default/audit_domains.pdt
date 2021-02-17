@@ -17,7 +17,7 @@
                         foreach ($vars->domains as $domain) {
                             ?>
                             <tr>
-                                <td><?php echo $this->Html->ifSet($domain); ?></td>
+                                <td><?php echo (isset($domain) ? $domain : null); ?></td>
                                 <td>No corresponding billing record in Blesta.</td>
                             </tr>
                             <?php

@@ -3,8 +3,8 @@
             <h4><?php $this->_('Namesilo.tab_settings.section_verification'); ?></h4>
             <div class="form-group">
                 <p><?php $this->_('Namesilo.tab_settings.verification_text');
-                    echo $this->Html->ifSet($vars->registrant_verification_info['email_address']); ?>:
-                    <?php if ($this->Html->ifSet($vars->registrant_verification_info['verified']) == 'Yes'){ ?>
+                    echo (isset($vars->registrant_verification_info['email_address']) ? $vars->registrant_verification_info['email_address'] : null); ?>:
+                    <?php if ((isset($vars->registrant_verification_info['verified']) ? $vars->registrant_verification_info['verified'] : null) == 'Yes'){ ?>
                     <span style="color:green"><?php $this->_('Namesilo.tab_settings.verified'); ?></span>!</p>
                 <?php } else { ?>
                     <span style="color:red;font-weight:bold"><?php $this->_('Namesilo.tab_settings.not_verified'); ?></span>!</p>
@@ -35,7 +35,7 @@
                     <div class="radio">
                         <label>
                             <?php
-                            $this->Form->fieldRadio('registrar_lock', 'Yes', $this->Html->ifSet($vars->registrar_lock) == 'Yes');
+                            $this->Form->fieldRadio('registrar_lock', 'Yes', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'Yes');
                             $this->_('Namesilo.tab_settings.field_registrar_lock_yes');
                             ?>
                         </label>
@@ -43,7 +43,7 @@
                     <div class="radio">
                         <label>
                             <?php
-                            $this->Form->fieldRadio('registrar_lock', 'No', $this->Html->ifSet($vars->registrar_lock) == 'No');
+                            $this->Form->fieldRadio('registrar_lock', 'No', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'No');
                             $this->_('Namesilo.tab_settings.field_registrar_lock_no');
                             ?>
                         </label>
@@ -53,7 +53,7 @@
                     <div class="checkbox">
                         <label>
                             <?php
-                            $this->Form->fieldCheckbox('request_epp', 'true', $this->Html->ifSet($vars->request_epp) == 'true');
+                            $this->Form->fieldCheckbox('request_epp', 'true', (isset($vars->request_epp) ? $vars->request_epp : null) == 'true');
                             $this->_('Namesilo.tab_settings.field_request_epp');
                             ?>
                         </label>
@@ -63,8 +63,8 @@
                     <div class="checkbox">
                         <label>
                             <?php
-                            $this->Form->fieldHidden('whois_privacy_before', $this->Html->ifSet($vars->whois_privacy));
-                            $this->Form->fieldCheckbox('whois_privacy', 'Yes', $this->Html->ifSet($vars->whois_privacy) == 'Yes', ['id' => 'whois_privacy']);
+                            $this->Form->fieldHidden('whois_privacy_before', (isset($vars->whois_privacy) ? $vars->whois_privacy : null));
+                            $this->Form->fieldCheckbox('whois_privacy', 'Yes', (isset($vars->whois_privacy) ? $vars->whois_privacy : null) == 'Yes', ['id' => 'whois_privacy']);
                             $this->_('Namesilo.domain.WhoisPrivacy');
                             ?>
                         </label>

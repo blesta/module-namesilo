@@ -27,18 +27,18 @@
                     <!-- List existing ds records -->
                     <tbody>
                     <tr>
-                        <td><?php echo $this->Html->ifSet($record->key_tag); ?></td>
-                        <td><?php echo $this->Html->ifSet($record->algorithm); ?></td>
-                        <td><?php echo $this->Html->ifSet($record->digest_type); ?></td>
-                        <td><?php echo $this->Html->ifSet($record->digest); ?></td>
+                        <td><?php echo (isset($record->key_tag) ? $record->key_tag : null); ?></td>
+                        <td><?php echo (isset($record->algorithm) ? $record->algorithm : null); ?></td>
+                        <td><?php echo (isset($record->digest_type) ? $record->digest_type : null); ?></td>
+                        <td><?php echo (isset($record->digest) ? $record->digest : null); ?></td>
                         <td>
                             <?php
-                            $this->Form->create($this->base_uri . 'clients/servicetab/' . $this->Html->ifSet($client_id) . '/' . $this->Html->ifSet($service_id) . '/tabDnssec/');
+                            $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/');
 
-                            $this->Form->fieldHidden('digest', $this->Html->ifSet($record->digest));
-                            $this->Form->fieldHidden('key_tag', $this->Html->ifSet($record->key_tag));
-                            $this->Form->fieldHidden('algorithm', $this->Html->ifSet($record->algorithm));
-                            $this->Form->fieldHidden('digest_type', $this->Html->ifSet($record->digest_type));
+                            $this->Form->fieldHidden('digest', (isset($record->digest) ? $record->digest : null));
+                            $this->Form->fieldHidden('key_tag', (isset($record->key_tag) ? $record->key_tag : null));
+                            $this->Form->fieldHidden('algorithm', (isset($record->algorithm) ? $record->algorithm : null));
+                            $this->Form->fieldHidden('digest_type', (isset($record->digest_type) ? $record->digest_type : null));
 
                             $button_attributes = [
                                 'class' => 'btn',
@@ -63,7 +63,7 @@
             <h3><?php $this->_('Namesilo.tab_dnssec.title_add'); ?></h3>
         </div>
         <?php
-        $this->Form->create($this->base_uri . 'clients/servicetab/' . $this->Html->ifSet($client_id) . '/' . $this->Html->ifSet($service_id) . '/tabDnssec/');
+        $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/');
         ?>
         <table class="table">
             <!-- Add New DS Record -->

@@ -790,7 +790,7 @@ class Namesilo extends Module implements Registrar
             }
 
             $response = $domains->getList($vars)->response();
-            $domain_list = $this->Html->ifSet($response->domains->domain);
+            $domain_list = (isset($response->domains->domain) ? $response->domains->domain : null);
 
             $vars['domains'] = [];
 
@@ -1064,7 +1064,7 @@ class Namesilo extends Module implements Registrar
             $fields->fieldSelect(
                 'meta[type]',
                 $types,
-                $this->Html->ifSet($vars->meta['type']),
+                (isset($vars->meta['type']) ? $vars->meta['type'] : null),
                 ['id' => 'namesilo_type']
             )
         );
@@ -1096,7 +1096,7 @@ class Namesilo extends Module implements Registrar
             $type->attach(
                 $fields->fieldText(
                     'meta[ns][]',
-                    $this->Html->ifSet($vars->meta['ns'][$i - 1]),
+                    (isset($vars->meta['ns'][$i - 1]) ? $vars->meta['ns'][$i - 1] : null),
                     ['id' => 'namesilo_ns' . $i]
                 )
             );
@@ -1403,7 +1403,7 @@ class Namesilo extends Module implements Registrar
             $fields->fieldSelect(
                 'renew',
                 [0, '1 year', '2 years', '3 years', '4 years', '5 years'],
-                $this->Html->ifSet($vars->renew),
+                (isset($vars->renew) ? $vars->renew : null),
                 ['id' => 'renew']
             )
         );

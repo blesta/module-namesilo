@@ -2417,6 +2417,25 @@ class Namesilo extends Module implements Registrar
     }
 
     /**
+     * Gets the domain name from the given service
+     *
+     * @param stdClass $service The service from which to extract the domain name
+     * @return string The domain name associated with the service
+     */
+    public function getServiceDomain($service)
+    {
+        if (isset($service->fields)) {
+            foreach ($service->fields as $service_field) {
+                if ($service_field->key == 'domain') {
+                    return $service_field->value;
+                }
+            }
+        }
+
+        return $this->getServiceName($service);
+    }
+
+    /**
      * Get a list of the TLDs supported by the registrar module
      *
      * @param int $module_row_id The ID of the module row to fetch for the current module

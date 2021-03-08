@@ -41,7 +41,7 @@
 
                     foreach ($tooltips as $tooltip) {
                         ?>
-                        <a href="#" data-toggle="tooltip" title="<?php (echo isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?>"><i class="fas fa-question-circle text-primary"></i></a>
+                        <a href="#" data-toggle="tooltip" title="<?php echo (isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?>"><i class="fas fa-question-circle text-primary"></i></a>
                         <?php
                     }
                     ?>

@@ -44,7 +44,7 @@
                         $this->Form->label($this->_('Namesilo.manage.manage_packages.text_tags', true));
                         ?>
                         <div class="accent_box">
-                            <?php (echo isset($package_name_tags) ? $this->Html->safe($package_name_tags) : null);?>
+                            <?php echo (isset($package_name_tags) ? $this->Html->safe($package_name_tags) : null);?>
                         </div>
                     </li>
                 </ul>
@@ -56,7 +56,7 @@
                                 foreach ($languages as $lang) {
                                     ?>
                                     <li<?php echo((isset($lang->code) ? $lang->code : null) == Configure::get('Blesta.language') ? ' class="current"' : '');?>>
-                                        <a href="#"><?php (echo isset($lang->name) ? $this->Html->safe($lang->name) : null);?></a>
+                                        <a href="#"><?php echo (isset($lang->name) ? $this->Html->safe($lang->name) : null);?></a>
                                     </li>
                                     <?php
                                 }
@@ -99,8 +99,8 @@
                                                 <div><?php $this->Form->fieldText('names[' . $i . '][name]', $found ? (isset($name->name) ? $name->name : null) : null, ['id' => 'name_' . (isset($lang->code) ? $lang->code : null)]);?></div>
                                             </li>
                                             <li>
-                                                <h4><a id="description_area_<?php (echo isset($lang->code) ? $this->Html->safe($lang->code) : null)?>" href="#" class="show_content"><i class="fas fa-caret-down"></i> <?php $this->_('Namesilo.manage.manage_packages.field_description');?></a></h4>
-                                                <div id="description_content_<?php (echo isset($lang->code) ? $this->Html->safe($lang->code) : null)?>" class="pad_top<?php echo !$show_description ? ' hidden' : ' show';?>">
+                                                <h4><a id="description_area_<?php echo (isset($lang->code) ? $this->Html->safe($lang->code) : null)?>" href="#" class="show_content"><i class="fas fa-caret-down"></i> <?php $this->_('Namesilo.manage.manage_packages.field_description');?></a></h4>
+                                                <div id="description_content_<?php echo (isset($lang->code) ? $this->Html->safe($lang->code) : null)?>" class="pad_top<?php echo !$show_description ? ' hidden' : ' show';?>">
                                                     <div>
                                                         <?php
                                                         $this->Form->fieldHidden('descriptions[' . $i . '][lang]', (isset($lang->code) ? $lang->code : null));

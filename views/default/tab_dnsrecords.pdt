@@ -27,9 +27,8 @@
                         <td>
                             <?php
                             $this->Form->create(
-                                $this->base_uri . 'clients/servicetab/' . $this->Html->ifSet(
-                                    $client_id
-                                ) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnsRecords/'
+                                $this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null)
+                                    . '/' . (isset($service_id) ? $service_id : null) . '/tabDnsRecords/'
                             );
                             $this->Form->fieldHidden('record_id', (isset($record['record_id']) ? $record['record_id'] : null));
 
@@ -62,9 +61,8 @@
         </div>
         <?php
         $this->Form->create(
-            $this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . $this->Html->ifSet(
-                $service_id
-            ) . '/tabDnsRecords/'
+            $this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null)
+                . '/' . (isset($service_id) ? $service_id : null) . '/tabDnsRecords/'
         );
         ?>
         <table class="table">

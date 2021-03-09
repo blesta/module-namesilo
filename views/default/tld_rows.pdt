@@ -3,10 +3,10 @@ foreach ((isset($currencies) ? $currencies : []) as $currency) {
     ?>
     <tr class="price_row <?php echo trim($tld, '.');?>_row">
         <td class="medium">
-            <strong><?php echo echo (isset($tld) ? $this->Html->safe($tld) : null);?></strong>
+            <strong><?php echo (isset($tld) ? $this->Html->safe($tld) : null);?></strong>
         </td>
         <td class="medium">
-            <?php echo echo (isset($currency) ? $this->Html->safe($currency) : null);?>
+            <?php echo (isset($currency) ? $this->Html->safe($currency) : null);?>
         </td>
         <td class="medium">
             <span class="previous_registration_price" data-price="<?php echo (isset($vars->pricing[$tld][$currency]['previous_registration_price']) ? $vars->pricing[$tld][$currency]['previous_registration_price'] : $pricing[$currency]->registration);?>">

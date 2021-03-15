@@ -7,7 +7,7 @@
                 <?php
                 foreach ($sections as $index => $key) {
                     ?>
-                    <li<?php echo $index == 0 ? ' class="active"' : ''; ?>><a href="#<?php $this->Html->_($key); ?>" data-toggle="tab"><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></a></li>
+                    <li<?php echo $index == 0 ? ' class="active"' : ''; ?>><a href="#<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>" data-toggle="tab"><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></a></li>
                     <?php
                 }
                 ?>
@@ -18,7 +18,7 @@
                 $i = 0;
                 foreach ($sections as $index => $key) {
                     ?>
-                    <div class="tab-pane<?php echo $index == 0 ? ' active' : ''; ?>" id="<?php $this->Html->_($key); ?>">
+                    <div class="tab-pane<?php echo $index == 0 ? ' active' : ''; ?>" id="<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>">
                         <?php
                         foreach ($fields as $field) {
                             if (substr($field->params['for'], 0, strlen($key)) != $key) {
@@ -41,17 +41,17 @@
                                     if (($input->type == 'fieldCheckbox' || $input->type == 'fieldRadio') && isset($input->label)) {
                                         $type = ($input->type == 'fieldCheckbox' ? 'checkbox' : 'radio');
                                         ?>
-                                        <div class="<?php $this->Html->_($type); ?>">
+                                        <div class="<?php echo (isset($type) ? $this->Html->safe($type) : null); ?>">
                                             <label>
                                                 <?php
                                                 call_user_func_array([$this->Form, $field->type], $field->params);
-                                                $this->Html->_($field->params['name']);
+                                                echo (isset($field->params['name']) ? $this->Html->safe($field->params['name']) : null);
                                                 ?>
                                             </label>
                                             <?php
                                             foreach ($tooltips as $tooltip) {
                                                 ?>
-                                                <a href="#" data-toggle="tooltip" title="<?php $this->Html->_($tooltip->params['message']); ?>"><i class="fas fa-question-circle text-primary"></i></a>
+                                                <a href="#" data-toggle="tooltip" title="<?php echo (isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?>"><i class="fas fa-question-circle text-primary"></i></a>
                                                 <?php
                                             }
                                             ?>
@@ -68,7 +68,7 @@
                                             $input->params['attributes']['class'] = 'form-control';
                                         }
 
-                                        $input->params['attributes']['placeholder'] = $this->Html->ifSet($field->params['name']);
+                                        $input->params['attributes']['placeholder'] = (isset($field->params['name']) ? $field->params['name'] : null);
 
                                         // Draw the primary label/field
                                         call_user_func_array([$this->Form, $field->type], $field->params);
@@ -77,7 +77,7 @@
 
                                         foreach ($tooltips as $tooltip) {
                                             ?>
-                                            <a href="#" data-toggle="tooltip" title="<?php $this->Html->_($tooltip->params['message']); ?>"><i class="fas fa-question-circle text-primary"></i></a>
+                                            <a href="#" data-toggle="tooltip" title="<?php echo (isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?>"><i class="fas fa-question-circle text-primary"></i></a>
                                             <?php
                                         }
                                     }

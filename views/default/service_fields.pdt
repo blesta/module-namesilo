@@ -1,5 +1,5 @@
     <?php
-    if ($this->Html->ifSet($fields) && !empty($fields)) {
+    if ((isset($fields) ? $fields : null) && !empty($fields)) {
         ?>
         <ul class="no_border">
             <?php
@@ -43,7 +43,7 @@
                         ?>
                         <span class="tooltip">
                         <?php $this->_('AppController.tooltip.text'); ?>
-                            <div><?php $this->Html->_($tooltip->params['message']); ?></div>
+                            <div><?php echo (isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?></div>
                     </span>
                         <?php
                     }

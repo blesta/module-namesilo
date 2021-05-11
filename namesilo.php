@@ -989,7 +989,7 @@ class Namesilo extends Module implements Registrar
         $encrypted_fields = ['key'];
 
         // Merge package settings on to the module row meta
-        $module_row_meta = array_merge($vars, (array)$module_row->meta);
+        $module_row_meta = array_merge((array)$module_row->meta, $vars);
 
         // Set unspecified checkboxes
         if (empty($meta['sandbox'])) {

@@ -260,13 +260,12 @@ class NamesiloPackages extends Namesilo
      */
     private function savePackage(array $params, $package_id = null)
     {
-        if (is_null($package_id)) {
+        if (is_null($package_id) || !($package = $this->Packages->get($package_id))) {
             // Add new package
             $package_id = $this->Packages->add($params);
         } else {
             // Update existing package
             $pricing_ids = [];
-            $package = $this->Packages->get($package_id);
 
             foreach ($package->pricing as $pricing) {
                 $pricing_ids[$pricing->currency] = $pricing->id;

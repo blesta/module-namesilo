@@ -47,6 +47,18 @@ class NamesiloResponse
     }
 
     /**
+     * Returns the CommandResponse in XML
+     * @return SimpleXMLElement A SimpleXMLElement object representing the CommandResponses, null if invalid response
+     */
+    public function responseXML()
+    {
+        if ($this->xml && $this->xml instanceof SimpleXMLElement) {
+            return $this->xml->reply;
+        }
+        return null;
+    }
+
+    /**
      * Returns the status of the API Responses
      *
      * @return string The status (300 = success)

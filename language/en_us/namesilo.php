@@ -1,6 +1,6 @@
 <?php
 // Basics
-$lang['Namesilo.name'] = 'NameSilo Domains Module';
+$lang['Namesilo.name'] = 'NameSilo';
 $lang['Namesilo.description'] = 'Resell domains through NameSilo.';
 $lang['Namesilo.module_row'] = 'Account';
 $lang['Namesilo.module_row_plural'] = 'Accounts';
@@ -24,7 +24,7 @@ $lang['Namesilo.manage.audit_domains'] = 'Audit Domains';
 
 // Audit Domains
 $lang['Namesilo.add_row.audit_domains.box_title'] = 'Audit Domains';
-$lang['Namesilo.manage.audit_domains.description'] = 'This is a summary of domains from the Namesilo API compared against domains currently active/suspended in Blesta.  This is to help ensure that you aren\'t paying for domains that you aren\'t being paid for.';
+$lang['Namesilo.manage.audit_domains.description'] = 'This is a summary of domains from the NameSilo API compared against domains currently active/suspended in Blesta.  This is to help ensure that you aren\'t paying for domains that you aren\'t being paid for.';
 $lang['Namesilo.manage.audit_domains.no_issues'] = 'No issues detected.';
 $lang['Namesilo.manage.audit_domains.results'] = 'Audit Results';
 
@@ -78,12 +78,12 @@ $lang['Namesilo.row_meta.sandbox_true'] = 'Yes';
 $lang['Namesilo.row_meta.sandbox_false'] = 'No';
 
 // Add row
-$lang['Namesilo.add_row.box_title'] = 'Add Namesilo Account';
+$lang['Namesilo.add_row.box_title'] = 'Add NameSilo Account';
 $lang['Namesilo.add_row.basic_title'] = 'Basic Settings';
 $lang['Namesilo.add_row.add_btn'] = 'Add Account';
 
 // Edit row
-$lang['Namesilo.edit_row.box_title'] = 'Edit Namesilo Account';
+$lang['Namesilo.edit_row.box_title'] = 'Edit NameSilo Account';
 $lang['Namesilo.edit_row.basic_title'] = 'Basic Settings';
 $lang['Namesilo.edit_row.add_btn'] = 'Update Account';
 
@@ -176,8 +176,8 @@ $lang['Namesilo.manage.manual_renewal'] = 'Manually Renew (select years)';
 // Errors
 $lang['Namesilo.!error.user.valid'] = 'Please enter a user';
 $lang['Namesilo.!error.key.valid'] = 'Please enter a key';
-$lang['Namesilo.!error.key.valid_connection'] = 'The user and key combination appear to be invalid, or your Namesilo account may not be configured to allow API access.';
-$lang['Namesilo.!error.portfolio.valid_portfolio'] = 'The portfolio entered does not appear valid.  Are you sure it has been created in your Namesilo account?';
+$lang['Namesilo.!error.key.valid_connection'] = 'The user and key combination appear to be invalid, or your NameSilo account may not be configured to allow API access.';
+$lang['Namesilo.!error.portfolio.valid_portfolio'] = 'The portfolio entered does not appear valid.  Are you sure it has been created in your NameSilo account?';
 $lang['Namesilo.!error.payment_id.valid_format'] = 'Payment ID must be either blank or numeric only.';
 $lang['Namesilo.!error.epp.empty'] = 'Domain transfers require an EPP code to be entered.';
 $lang['Namesilo.!error.premium_domain'] = '%1$s is a premium domain. Please contact us for more information.'; // %1$s is the premium domain;

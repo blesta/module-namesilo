@@ -1044,7 +1044,7 @@ class Namesilo extends Module implements Registrar
             }
         } else {
             // Fetch the 1st server from the list of servers in the selected group
-            $rows = $this->getModuleRows($vars->module_group);
+            $rows = $this->getModuleRows(isset($vars->module_group) ? $vars->module_group : null);
             if (isset($rows[0])) {
                 $module_row = $rows[0];
             }

@@ -1,4 +1,5 @@
 <?php
+
 use Blesta\Core\Util\Modules\Registrar;
 
 /**
@@ -205,7 +206,8 @@ class Namesilo extends Module implements Registrar
         $parent_package = null,
         $parent_service = null,
         $status = 'pending'
-    ) {
+    )
+    {
         $row = $this->getModuleRow($package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
 
@@ -221,10 +223,10 @@ class Namesilo extends Module implements Registrar
 
         $input_fields = array_merge(
             Configure::get('Namesilo.domain_fields'),
-            (array) Configure::get('Namesilo.domain_fields' . $tld),
-            (array) Configure::get('Namesilo.nameserver_fields'),
-            (array) Configure::get('Namesilo.transfer_fields'),
-            ['years' => true, 'transfer' => isset($vars['transfer']) ? $vars['transfer'] : 1 ]
+            (array)Configure::get('Namesilo.domain_fields' . $tld),
+            (array)Configure::get('Namesilo.nameserver_fields'),
+            (array)Configure::get('Namesilo.transfer_fields'),
+            ['years' => true, 'transfer' => isset($vars['transfer']) ? $vars['transfer'] : 1]
         );
 
         // .ca and .us domains can't have traditional whois privacy
@@ -375,7 +377,7 @@ class Namesilo extends Module implements Registrar
      */
     public function editService($package, $service, array $vars = [], $parent_package = null, $parent_service = null)
     {
-        $renew = isset($vars['renew']) ? (int) $vars['renew'] : 0;
+        $renew = isset($vars['renew']) ? (int)$vars['renew'] : 0;
         if ($renew > 0 && $vars['use_module'] == 'true') {
             $this->renewService($package, $service, $parent_package, $parent_service, $renew);
             unset($vars['renew']);
@@ -839,11 +841,11 @@ class Namesilo extends Module implements Registrar
             $this->view->set('vars', (object)$vars);
 
             return $this->view->fetch();
-        } elseif  ($action == 'get_renew_info') {
+        } elseif ($action == 'get_renew_info') {
             $service_id = isset($_GET['service_id']) ? $_GET['service_id'] : null;
             if (is_null($service_id)) {
                 // exit() to prevent any output other than json from being rendered
-               exit();
+                exit();
             }
 
             // Load the API
@@ -939,7 +941,7 @@ class Namesilo extends Module implements Registrar
                 $this->Services->edit($service_id, ['date_renews' => $info['date_after']], true);
             }
             $url = explode('?', $_SERVER['REQUEST_URI']);
-            header('Location:' . $url[0].'?action=sync_renew_dates&msg=success');
+            header('Location:' . $url[0] . '?action=sync_renew_dates&msg=success');
             exit();
         }
 
@@ -1042,7 +1044,7 @@ class Namesilo extends Module implements Registrar
             }
         } else {
             // Fetch the 1st server from the list of servers in the selected group
-            $rows = $this->getModuleRows($vars->module_group);
+            $rows = $this->getModuleRows(isset($vars->module_group) ? $vars->module_group : null);
             if (isset($rows[0])) {
                 $module_row = $rows[0];
             }
@@ -1253,7 +1255,7 @@ class Namesilo extends Module implements Registrar
             if ((isset($vars->transfer) && $vars->transfer) || isset($vars->auth)) {
                 $fields = array_merge(
                     Configure::get('Namesilo.transfer_fields'),
-                    (array) Configure::get('Namesilo.domain_fields' . $tld)
+                    (array)Configure::get('Namesilo.domain_fields' . $tld)
                 );
 
                 // .ca domains can't have traditional whois privacy
@@ -1276,7 +1278,7 @@ class Namesilo extends Module implements Registrar
                 $fields = array_merge(
                     Configure::get('Namesilo.nameserver_fields'),
                     Configure::get('Namesilo.domain_fields'),
-                    (array) Configure::get('Namesilo.domain_fields' . $tld)
+                    (array)Configure::get('Namesilo.domain_fields' . $tld)
                 );
 
                 // .ca domains can't have traditional whois privacy
@@ -1569,7 +1571,7 @@ class Namesilo extends Module implements Registrar
      * @param array $files Any FILES parameters
      * @return string The string representing the contents of this tab
      */
-    public function tabDnsRecords($package, $service, array $get  =null, array $post = null, array $files = null)
+    public function tabDnsRecords($package, $service, array $get = null, array $post = null, array $files = null)
     {
         return $this->manageDnsRecords('tab_dnsrecords', $package, $service, $get, $post, $files);
     }
@@ -1776,7 +1778,7 @@ class Namesilo extends Module implements Registrar
         $whois_fields = Configure::get('Namesilo.whois_fields');
         $fields = $this->serviceFieldsToObject($service->fields);
 
-        $domainInfo = $domains->getDomainInfo(['domain' => $fields->domain ]);
+        $domainInfo = $domains->getDomainInfo(['domain' => $fields->domain]);
         if (self::$codes[$domainInfo->status()][1] == 'fail') {
             $this->processResponse($api, $domainInfo);
             return false;
@@ -1811,7 +1813,7 @@ class Namesilo extends Module implements Registrar
         $contacts = $temp = [];
         foreach ($contact_ids as $type => $id) {
             if (!isset($temp[$id])) {
-                $response = $domains->getContacts(['contact_id' => $id ]);
+                $response = $domains->getContacts(['contact_id' => $id]);
                 if (self::$codes[$response->status()][1] != 'fail') {
                     $temp[$id] = $response->response()->contact;
                     $contacts[$type] = $temp[$id];
@@ -1868,7 +1870,8 @@ class Namesilo extends Module implements Registrar
         array $get = null,
         array $post = null,
         array $files = null
-    ) {
+    )
+    {
         $vars = new stdClass();
 
         if (in_array($service->status, self::$pending)) {
@@ -1895,7 +1898,7 @@ class Namesilo extends Module implements Registrar
             $tld = $this->getTld($fields->domain, $row);
             $sld = substr($fields->domain, 0, -strlen($tld));
 
-            if (! empty($post)) {
+            if (!empty($post)) {
                 $args = [];
                 $i = 1;
                 foreach ($post['ns'] as $ns) {
@@ -1910,7 +1913,7 @@ class Namesilo extends Module implements Registrar
 
                 $vars = (object)$post;
             } else {
-                $response = $dns->getList(['domain' => $fields->domain ])->response();
+                $response = $dns->getList(['domain' => $fields->domain])->response();
 
                 if (isset($response->nameservers)) {
                     $vars->ns = [];
@@ -1940,7 +1943,7 @@ class Namesilo extends Module implements Registrar
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $ns = new NamesiloDomainsNs($api);
 
-        $response = $ns->getInfo(['domain' => $fields->domain ])->response();
+        $response = $ns->getInfo(['domain' => $fields->domain])->response();
         $host_obj = new stdClass();
         $hosts = [];
 
@@ -2225,9 +2228,8 @@ class Namesilo extends Module implements Registrar
             }
 
             // We are expecting a multidimensional array
-            if ( $this->isMultiArray( $records['resource_record'] ) === false )
-            {
-                $records['resource_record'] = [ 0 => $records['resource_record'] ];
+            if ($this->isMultiArray($records['resource_record']) === false) {
+                $records['resource_record'] = [0 => $records['resource_record']];
             }
 
             $vars->selects = Configure::get('Namesilo.dns_records');
@@ -2261,7 +2263,8 @@ class Namesilo extends Module implements Registrar
         array $get = null,
         array $post = null,
         array $files = null
-    ) {
+    )
+    {
         $vars = new stdClass();
 
         if (in_array($service->status, self::$pending)) {
@@ -2651,7 +2654,7 @@ class Namesilo extends Module implements Registrar
         // Set errors, if any
         if (self::$codes[$status][1] == 'fail') {
             $errors = $response->errors() ? $response->errors() : [];
-            $this->Input->setErrors(['errors' => (array)$errors ]);
+            $this->Input->setErrors(['errors' => (array)$errors]);
         }
     }
 
@@ -2983,10 +2986,10 @@ class Namesilo extends Module implements Registrar
      *
      * @return bool true|false
      */
-    private function isMultiArray( array $array )
+    private function isMultiArray(array $array)
     {
-        rsort( $array );
-        return isset( $array[0] ) && is_array( $array[0] );
+        rsort($array);
+        return isset($array[0]) && is_array($array[0]);
     }
 
     /**
@@ -2994,7 +2997,8 @@ class Namesilo extends Module implements Registrar
      *
      * @param mixed $data The array or object to be printed
      */
-    public function printJson($data = []) {
+    public function printJson($data = [])
+    {
         header('Content-type: application/json');
         echo json_encode($data);
         exit;

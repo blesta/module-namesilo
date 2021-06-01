@@ -1,7 +1,4 @@
 <?php
-
-use Blesta\Core\Util\Modules\Registrar;
-
 /**
  * Namesilo Module
  *
@@ -12,7 +9,7 @@ use Blesta\Core\Util\Modules\Registrar;
  * @copyright Copyright (c) 2015-2018, NETLINK IT SERVICES
  * @link http://www.netlink.ie/ NETLINK
  */
-class Namesilo extends Module implements Registrar
+class Namesilo extends RegistrarModule
 {
     /**
      * @var string Debug email address
@@ -2399,14 +2396,17 @@ class Namesilo extends Module implements Registrar
     /**
      * Gets the domain expiration date
      *
-     * @param string $domain The domain to lookup
+     * @param stdClass $service The service belonging to the domain to lookup
      * @param string $format The format to return the expiration date in
-     * @param int $module_row_id The ID of the module row to fetch for the current module
      * @return string The domain expiration date in UTC time in the given format
+     * @see Services::get()
      */
-    public function getExpirationDate($domain, $format = 'Y-m-d H:i:s', $module_row_id = null)
+    public function getExpirationDate($service, $format = 'Y-m-d H:i:s')
     {
         Loader::loadHelpers($this, ['Date']);
+
+        $domain = $this->getServiceDomain($service);
+        $module_row_id = $service->module_row_id ?? null;
 
         $row = $this->getModuleRow($module_row_id);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');

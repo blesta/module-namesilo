@@ -51,4 +51,5 @@ The module provides the following template tags for use in welcome email templat
 |--------------|--------------|
 |< v4.9.0|v1.9.0|
 |>= v4.9.0|v1.10.0+|
+|>= v5.0.0|v1.13.0+|
 |>= v5.1.0|v1.14.0+|

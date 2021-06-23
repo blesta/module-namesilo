@@ -2222,6 +2222,8 @@ class Namesilo extends RegistrarModule
             // Get a consistent format because XML parsing in PHP is inconsistent
             if (isset($records['resource_record']) && !is_array($records['resource_record'])) {
                 $records['resource_record'] = (array)$records['resource_record'];
+            } elseif (!isset($records['resource_record'])) {
+                $records['resource_record'] = [];
             }
 
             // We are expecting a multidimensional array
@@ -2335,17 +2337,21 @@ class Namesilo extends RegistrarModule
                 $vars->registrar_lock = $info_response->locked;
             }
 
-            $registrant_id = $info_response->contact_ids->registrant;
-            $registrant_info = $domains->getContacts(['contact_id' => $registrant_id]);
-            $registrant_email = $registrant_info->response()->contact->email;
+            if (isset($info_response->contact_ids->registrant)) {
+                $registrant_id = $info_response->contact_ids->registrant;
+                $registrant_info = $domains->getContacts(['contact_id' => $registrant_id]);
+                $registrant_email = $registrant_info->response()->contact->email;
 
-            $registrant_verification = $domains->registrantVerificationStatus()->response(true);
-            if (!is_array($registrant_verification['email'])) {
-                $registrant_verification['email'] = [$registrant_verification->email];
-            }
-            foreach ($registrant_verification['email'] as $key => $registrant) {
-                if (isset($registrant['email_address']) && $registrant['email_address'] == $registrant_email) {
-                    $vars->registrant_verification_info = $registrant;
+                $registrant_verification = $domains->registrantVerificationStatus()->response(true);
+                if ($registrant_verification) {
+                    if (!is_array($registrant_verification['email'])) {
+                        $registrant_verification['email'] = [$registrant_verification->email];
+                    }
+                    foreach ($registrant_verification['email'] as $key => $registrant) {
+                        if (isset($registrant['email_address']) && $registrant['email_address'] == $registrant_email) {
+                            $vars->registrant_verification_info = $registrant;
+                        }
+                    }
                 }
             }
         }

@@ -78,27 +78,6 @@ class NamesiloDomains
     public function getContacts(array $vars)
     {
         return $this->api->submit('contactList', $vars);
-
-        $response = self::getDomainInfo($vars);
-
-        if (parent::$codes[$response->status()][1] != 'fail') {
-            $contact_ids = $response->response()->contact_ids;
-
-            $contacts = $temp = [];
-            foreach ($contact_ids as $type => $id) {
-                if (!isset($temp[$id])) {
-                    $response = $this->api->submit('contactList', ['contact_id' => $id]);
-                    if (parent::$codes[$response->status()][1] != 'fail') {
-                        $temp[$id] = $response->response()->contact;
-                        $contacts[$type] = $temp[$id];
-                    }
-                } else {
-                    $contacts[$type] = $temp[$id];
-                }
-            }
-            return $contacts;
-        }
-        return false;
     }
 
     /**

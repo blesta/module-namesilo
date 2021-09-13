@@ -1,0 +1,27 @@
+    <div class="row panel-fix">
+        <div class="col-md-12">
+            <?php
+            $this->Form->create();
+            ?>
+                <h4><?php $this->_('Namesilo.tab_whois_privacy.title'); ?></h4>
+                <p class="mb-2"><?php $this->_('Namesilo.tab_whois_privacy.desc'); ?></p>
+
+                <div class="form-group">
+                    <div class="checkbox">
+                        <label>
+                            <?php
+                            $this->Form->fieldHidden('whois_privacy_before', (isset($vars->whois_privacy) ? $vars->whois_privacy : null));
+                            $this->Form->fieldCheckbox('whois_privacy', 'Yes', (isset($vars->whois_privacy) ? $vars->whois_privacy : null) == 'Yes', ['id' => 'whois_privacy']);
+                            $this->_('Namesilo.tab_whois_privacy.whois_privacy');
+                            ?>
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-light float-right" type="submit">
+                    <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_whois_privacy.field_submit'); ?>
+                </button>
+            <?php
+            $this->Form->end();
+            ?>
+        </div>
+    </div>

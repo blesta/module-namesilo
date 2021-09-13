@@ -2,11 +2,14 @@
 
     <div class="row panel-fix">
         <div class="col-md-12">
+            <h4><?php $this->_('Namesilo.tab_nameservers.title'); ?></h4>
+            <p class="mb-2"><?php $this->_('Namesilo.tab_nameservers.desc'); ?></p>
+
             <?php
             for ($i = 0; $i < 5; $i++) {
                 ?>
                 <div class="form-group">
-                    <?php $this->Form->label( $this->_( 'Namesilo.tab_nameserver.field_ns', true, $i+1 ), 'ns' . ($i+1) ); ?>
+                    <?php $this->Form->label( $this->_( 'Namesilo.tab_nameservers.field_ns', true, $i+1 ), 'ns' . ($i+1) ); ?>
                     <?php $this->Form->fieldText( 'ns[]', (isset($vars->ns[$i]) ? $vars->ns[$i] : null),  [ 'id' => 'ns' . ($i+1), 'class' => 'form-control', 'placeholder' => $this->_( 'Namesilo.tab_nameserver.field_ns', true, $i+1 ) ] ); ?>
                 </div>
                 <?php

@@ -1,0 +1,25 @@
+    <div class="title_row first">
+        <h3><?php $this->_('Namesilo.tab_whois_privacy.title'); ?></h3>
+    </div>
+
+    <?php
+    $this->Form->create();
+    ?>
+    <div class="pad">
+        <ul>
+            <li>
+                <p><?php $this->_('Namesilo.tab_whois_privacy.desc'); ?></p>
+            </li>
+            <li>
+                <?php
+                $this->Form->fieldHidden('whois_privacy_before', (isset($vars->whois_privacy) ? $vars->whois_privacy : null));
+                $this->Form->fieldCheckbox('whois_privacy', 'Yes', (isset($vars->whois_privacy) ? $vars->whois_privacy : null) == 'Yes', ['id' => 'whois_privacy']);
+                $this->Form->label($this->_('Namesilo.domain.WhoisPrivacy', true), 'whois_privacy', ['class' => 'inline']);
+                ?>
+            </li>
+        </ul>
+    </div>
+    <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_settings.field_submit'); ?></a></div>
+    <?php
+    $this->Form->end();
+    ?>

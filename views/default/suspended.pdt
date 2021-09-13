@@ -1,1 +1,0 @@
-    <p><?php $this->_('Namesilo.notice.StatusSuspended'); ?></p>

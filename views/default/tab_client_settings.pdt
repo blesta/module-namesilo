@@ -49,6 +49,9 @@
                         </label>
                     </div>
                 </div>
+                <?php
+                if ($epp_code ?? true) {
+                ?>
                 <div class="form-group">
                     <div class="checkbox">
                         <label>
@@ -59,6 +62,27 @@
                         </label>
                     </div>
                 </div>
+                <?php
+                }
+                ?>
+                <?php
+                if ($id_protection ?? false) {
+                ?>
+                <div class="form-group">
+                    <div class="checkbox">
+                        <label>
+                            <?php
+                            $this->Form->fieldHidden('whois_privacy_before', (isset($vars->whois_privacy) ? $vars->whois_privacy : null));
+                            $this->Form->fieldCheckbox('whois_privacy', 'Yes', (isset($vars->whois_privacy) ? $vars->whois_privacy : null) == 'Yes', ['id' => 'whois_privacy']);
+                            $this->_('Namesilo.domain.WhoisPrivacy');
+                            ?>
+                        </label>
+                    </div>
+                </div>
+                <?php
+                    }
+                ?>
+
                 <button class="btn btn-light float-right" type="submit">
                     <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_settings.field_submit'); ?>
                 </button>

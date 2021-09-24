@@ -28,11 +28,6 @@ class Namesilo extends RegistrarModule
     private static $defaultModuleView;
 
     /**
-     * @var bool True if the domain manager it's installed, false otherwise
-     */
-    private $domain_manager = false;
-
-    /**
      * Initializes the module
      */
     public function __construct()
@@ -51,13 +46,6 @@ class Namesilo extends RegistrarModule
 
         // Load configuration
         Configure::load('namesilo', __DIR__ . DS . 'config' . DS);
-
-        // Load domain manager, if available
-        $this->domain_manager = false;
-        if ($this->PluginManager->isInstalled('domains', Configure::get('Blesta.company_id'))) {
-            Loader::loadModels($this, ['Domains.DomainsTlds']);
-            $this->domain_manager = true;
-        }
 
         // Get Namesilo response codes
         self::$codes = Configure::get('Namesilo.status.codes');
@@ -1459,19 +1447,21 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Returns all tabs to display to an admin when managing a service whose
-     * package uses this module
+     * Returns all tabs to display to an admin when managing a service
      *
-     * @param stdClass $package A stdClass object representing the selected package
+     * @param stdClass $service A stdClass object representing the service
      * @return array An array of tabs in the format of method => title.
-     *  Example: array('methodName' => "Title", 'methodName2' => "Title2")
+     *  Example: ['methodName' => "Title", 'methodName2' => "Title2"]
      */
-    public function getAdminTabs($package)
+    public function getAdminServiceTabs($service)
     {
+        Loader::loadModels($this, ['Packages']);
+
+        $package = $this->Packages->get($service->package_id ?? $service->package->id);
+
         if ($package->meta->type == 'domain') {
             $tabs = [
                 'tabWhois' => Language::_('Namesilo.tab_whois.title', true),
-                'tabWhoisPrivacy' => Language::_('Namesilo.tab_whois_privacy.title', true),
                 'tabEmailForwarding' => Language::_('Namesilo.tab_email_forwarding.title', true),
                 'tabNameservers' => Language::_('Namesilo.tab_nameservers.title', true),
                 'tabHosts' => Language::_('Namesilo.tab_hosts.title', true),
@@ -1481,28 +1471,34 @@ class Namesilo extends RegistrarModule
                 'tabAdminActions' => Language::_('Namesilo.tab_adminactions.title', true),
             ];
 
-            if ($this->domain_manager) {
-                $tld = $this->DomainsTlds->getByPackage($package->id);
+            // Check if DNS Management is enabled
+            if (
+                !$this->featureServiceEnabled('dns_management', $service)
+                    && !$this->featurePackageEnabled('dns_management', $package)
+            ) {
+                unset($tabs['tabDnssec'], $tabs['tabDnsRecords']);
+            }
 
-                // Check if DNS Management is enabled
-                if (($tld->dns_management ?? '0') == '0') {
-                    unset($tabs['tabDnssec'], $tabs['tabDnsRecords']);
-                }
+            // Check if Email Forwarding is enabled
+            if (
+                !$this->featureServiceEnabled('email_forwarding', $service)
+                    && !$this->featurePackageEnabled('email_forwarding', $package)
+            ) {
+                unset($tabs['tabEmailForwarding']);
+            }
 
-                // Check if Email Forwarding is enabled
-                if (($tld->email_forwarding ?? '0') == '0') {
-                    unset($tabs['tabEmailForwarding']);
-                }
-
-                // Check if ID Protection is enabled
-                if (($tld->id_protection ?? '0') == '0') {
-                    unset($tabs['tabWhoisPrivacy']);
-                }
-
-                // Check if EPP Code is enables
-                if (($tld->epp_code ?? '0') == '0') {
-                    unset($tabs['tabSettings']);
-                }
+            // Check if EPP Code is enables
+            if (
+                (
+                    !$this->featureServiceEnabled('epp_code', $service)
+                        && !$this->featurePackageEnabled('epp_code', $package)
+                ) &&
+                (
+                    !$this->featureServiceEnabled('id_protection', $service)
+                        && !$this->featurePackageEnabled('id_protection', $package)
+                )
+            ) {
+                unset($tabs['tabSettings']);
             }
 
             return $tabs;
@@ -1510,24 +1506,29 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Returns all tabs to display to a client when managing a service whose
-     * package uses this module
+     * Returns all tabs to display to a client when managing a service.
      *
-     * @param stdClass $package A stdClass object representing the selected package
-     * @return array An array of tabs in the format of method => title.
-     *  Example: array('methodName' => "Title", 'methodName2' => "Title2")
+     * @param stdClass $service A stdClass object representing the service
+     * @return array An array of tabs in the format of method => title, or method => array where array contains:
+     *
+     *  - name (required) The name of the link
+     *  - icon (optional) use to display a custom icon
+     *  - href (optional) use to link to a different URL
+     *      Example:
+     *      ['methodName' => "Title", 'methodName2' => "Title2"]
+     *      ['methodName' => ['name' => "Title", 'icon' => "icon"]]
      */
-    public function getClientTabs($package)
+    public function getClientServiceTabs($service)
     {
+        Loader::loadModels($this, ['Packages']);
+
+        $package = $this->Packages->get($service->package_id ?? $service->package->id);
+
         if ($package->meta->type == 'domain') {
             $tabs = [
                 'tabClientWhois' => [
                     'name' => Language::_('Namesilo.tab_whois.title', true),
                     'icon' => 'fas fa-users'
-                ],
-                'tabClientWhoisPrivacy' => [
-                    'name' => Language::_('Namesilo.tab_whois_privacy.title', true),
-                    'icon' => 'fas fa-user-shield'
                 ],
                 'tabClientEmailForwarding' => [
                     'name' => Language::_('Namesilo.tab_email_forwarding.title', true),
@@ -1555,32 +1556,87 @@ class Namesilo extends RegistrarModule
                 ]
             ];
 
-            if ($this->domain_manager) {
-                $tld = $this->DomainsTlds->getByPackage($package->id);
+            // Check if DNS Management is enabled
+            if (
+                !$this->featureServiceEnabled('dns_management', $service)
+                    && !$this->featurePackageEnabled('dns_management', $package)
+            ) {
+                unset($tabs['tabClientDnssec'], $tabs['tabClientDnsRecords']);
+            }
 
-                // Check if DNS Management is enabled
-                if (($tld->dns_management ?? '0') == '0') {
-                    unset($tabs['tabClientDnssec'], $tabs['tabClientDnsRecords']);
-                }
+            // Check if Email Forwarding is enabled
+            if (
+                !$this->featureServiceEnabled('email_forwarding', $service)
+                && !$this->featurePackageEnabled('email_forwarding', $package)
+            ) {
+                unset($tabs['tabClientEmailForwarding']);
+            }
 
-                // Check if Email Forwarding is enabled
-                if (($tld->email_forwarding ?? '0') == '0') {
-                    unset($tabs['tabClientEmailForwarding']);
-                }
-
-                // Check if ID Protection is enabled
-                if (($tld->id_protection ?? '0') == '0') {
-                    unset($tabs['tabClientWhoisPrivacy']);
-                }
-
-                // Check if EPP Code is enables
-                if (($tld->epp_code ?? '0') == '0') {
-                    unset($tabs['tabClientSettings']);
-                }
+            // Check if ID Protection or EPP Code is enabled
+            if (
+                (
+                    !$this->featureServiceEnabled('epp_code', $service)
+                        && !$this->featurePackageEnabled('epp_code', $package)
+                ) &&
+                (
+                    !$this->featureServiceEnabled('id_protection', $service)
+                        && !$this->featurePackageEnabled('id_protection', $package)
+                )
+            ) {
+                unset($tabs['tabClientSettings']);
             }
 
             return $tabs;
         }
+    }
+
+    /**
+     * Checks if a feature is enabled for a given service
+     *
+     * @param string $feature The name of the feature to check if it's enabled (e.g. id_protection)
+     * @param stdClass $service An object representing the service
+     * @return bool True if the feature is enabled, false otherwise
+     */
+    private function featureServiceEnabled($feature, $service)
+    {
+        // Get package
+        Loader::loadModels($this, ['Packages', 'Companies']);
+        $package = $this->Packages->get($service->package_id ?? $service->package->id);
+
+        // Get company settings
+        $company_setting = $this->Companies->getSetting($package->company_id, 'domains_' . $feature . '_option_group');
+        $option_group = $company_setting->value ?? null;
+
+        // Get service option groups
+        $service_options = [];
+        foreach ($service->options as $option) {
+            $service_options[] = $option->option_id;
+        }
+
+        return in_array($option_group, $service_options);
+    }
+
+    /**
+     * Checks if a feature is enabled for a given package
+     *
+     * @param string $feature The name of the feature to check if it's enabled (e.g. id_protection)
+     * @param stdClass $package An object representing the package
+     * @return bool True if the feature is enabled, false otherwise
+     */
+    private function featurePackageEnabled($feature, $package)
+    {
+        // Get company settings
+        Loader::loadModels($this, ['Companies']);
+        $company_setting = $this->Companies->getSetting($package->company_id, 'domains_' . $feature . '_option_group');
+        $option_group = $company_setting->value ?? null;
+
+        // Get package option groups
+        $package_options = [];
+        foreach ($package->option_groups as $option_group) {
+            $package_options[] = $option_group->id;
+        }
+
+        return in_array($option_group, $package_options);
     }
 
     /**
@@ -1611,48 +1667,6 @@ class Namesilo extends RegistrarModule
     public function tabClientWhois($package, $service, array $get = null, array $post = null, array $files = null)
     {
         return $this->manageWhois('tab_client_whois', $package, $service, $get, $post, $files);
-    }
-
-    /**
-     * Admin Whois Privacy tab
-     *
-     * @param stdClass $package A stdClass object representing the current package
-     * @param stdClass $service A stdClass object representing the current service
-     * @param array $get Any GET parameters
-     * @param array $post Any POST parameters
-     * @param array $files Any FILES parameters
-     * @return string The string representing the contents of this tab
-     */
-    public function tabWhoisPrivacy(
-        $package,
-        $service,
-        array $get = null,
-        array $post = null,
-        array $files = null
-    )
-    {
-        return $this->manageWhoisPrivacy('tab_whois_privacy', $package, $service, $get, $post, $files);
-    }
-
-    /**
-     * Client Whois Privacy tab
-     *
-     * @param stdClass $package A stdClass object representing the current package
-     * @param stdClass $service A stdClass object representing the current service
-     * @param array $get Any GET parameters
-     * @param array $post Any POST parameters
-     * @param array $files Any FILES parameters
-     * @return string The string representing the contents of this tab
-     */
-    public function tabClientWhoisPrivacy(
-        $package,
-        $service,
-        array $get = null,
-        array $post = null,
-        array $files = null
-    )
-    {
-        return $this->manageWhoisPrivacy('tab_client_whois_privacy', $package, $service, $get, $post, $files);
     }
 
     /**
@@ -2014,71 +2028,6 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Handle updating whois privacy
-     *
-     * @param string $view The view to use
-     * @param stdClass $package A stdClass object representing the current package
-     * @param stdClass $service A stdClass object representing the current service
-     * @param array $get Any GET parameters
-     * @param array $post Any POST parameters
-     * @param array $files Any FILES parameters
-     * @return string The string representing the contents of this tab
-     */
-    private function manageWhoisPrivacy(
-        $view,
-        $package,
-        $service,
-        array $get = null,
-        array $post = null,
-        array $files = null
-    )
-    {
-        // If the domain is pending transfer display a notice of such
-        $checkDomainStatus = $this->checkDomainStatus($service, $package);
-        if (isset($checkDomainStatus)) {
-            return $checkDomainStatus;
-        }
-
-        $this->view = new View($view, 'default');
-
-        // Load the helpers required for this view
-        Loader::loadHelpers($this, ['Form', 'Html']);
-
-        $row = $this->getModuleRow($package->module_row);
-        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
-        $domains = new NamesiloDomains($api);
-
-        $fields = $this->serviceFieldsToObject($service->fields);
-
-        $vars = new stdClass();
-        if (!empty($post)) {
-            if (isset($post['whois_privacy_before'])) {
-                if ($post['whois_privacy_before'] == 'No' && $post['whois_privacy'] == 'Yes') {
-                    $response = $domains->addPrivacy(['domain' => $fields->domain]);
-                    $this->processResponse($api, $response);
-                } elseif ($post['whois_privacy_before'] == 'Yes' && !isset($post['whois_privacy'])) {
-                    $response = $domains->removePrivacy(['domain' => $fields->domain]);
-                    $this->processResponse($api, $response);
-                }
-            }
-
-            $vars = (object) $post;
-        }
-
-        $info = $domains->getDomainInfo(['domain' => $fields->domain]);
-        $info_response = $info->response();
-
-        if (isset($info_response->private)) {
-            $vars->whois_privacy = $info_response->private;
-        }
-
-        $this->view->set('vars', $vars);
-        $this->view->setDefaultView(self::$defaultModuleView);
-
-        return $this->view->fetch();
-    }
-
-    /**
      * Manage domain email forwarders
      *
      * @param string $view The name of the view to fetch
@@ -2389,6 +2338,21 @@ class Namesilo extends RegistrarModule
     {
         $vars = new stdClass();
 
+        // Get service option groups
+        $service_options = [];
+        foreach ($service->options as $option) {
+            $service_options[] = $option->id;
+        }
+
+        // Validate if the service has access to this tab
+        Loader::loadModels($this, ['Companies']);
+        $setting = $this->Companies->getSetting($package->company_id, 'domains_dns_management_option_group');
+        $option_group = $setting->value ?? null;
+
+        if (!in_array($option_group, $service_options)) {
+            
+        }
+
         // if the domain is pending transfer display a notice of such
         $checkDomainStatus = $this->checkDomainStatus($service, $package);
         if (isset($checkDomainStatus)) {
@@ -2608,7 +2572,7 @@ class Namesilo extends RegistrarModule
                     $this->processResponse($api, $response);
                 }
 
-                if (isset($post['request_epp'])) {
+                if (isset($post['request_epp']) && $this->featureServiceEnabled('epp_code', $service)) {
                     $response = $transfer->getEpp(['domain' => $fields->domain]);
                     $this->processResponse($api, $response);
                     unset($post['request_epp']);
@@ -2619,6 +2583,20 @@ class Namesilo extends RegistrarModule
                             true
                         )
                     );
+                }
+
+                if (
+                    isset($post['whois_privacy_before'])
+                        && isset($post['whois_privacy'])
+                        && $this->featureServiceEnabled('id_protection', $service)
+                ) {
+                    if ($post['whois_privacy_before'] == 'No' && $post['whois_privacy'] == 'Yes') {
+                        $response = $domains->addPrivacy(['domain' => $fields->domain]);
+                        $this->processResponse($api, $response);
+                    } elseif ($post['whois_privacy_before'] == 'Yes' && !isset($post['whois_privacy'])) {
+                        $response = $domains->removePrivacy(['domain' => $fields->domain]);
+                        $this->processResponse($api, $response);
+                    }
                 }
 
                 $vars = (object) $post;
@@ -2654,6 +2632,8 @@ class Namesilo extends RegistrarModule
             }
         }
 
+        $this->view->set('id_protection', $this->featureServiceEnabled('id_protection', $service));
+        $this->view->set('epp_code', $this->featureServiceEnabled('epp_code', $service));
         $this->view->set('vars', $vars);
         $this->view->setDefaultView(self::$defaultModuleView);
 

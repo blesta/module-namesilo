@@ -106,11 +106,6 @@ $lang['Namesilo.tab_whois.section_tech'] = 'Technical';
 $lang['Namesilo.tab_whois.section_billing'] = 'Billing';
 $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
 
-$lang['Namesilo.tab_whois_privacy.title'] = 'Whois Privacy';
-$lang['Namesilo.tab_whois_privacy.desc'] = 'Whois Privacy protects domain owner\'s information by placing our information in whois and provides an option to redirect email and regular mail to the customer\'s real address.';
-$lang['Namesilo.tab_whois_privacy.whois_privacy'] = 'Enable Whois Privacy';
-$lang['Namesilo.tab_whois_privacy.field_submit'] = 'Update Settings';
-
 $lang['Namesilo.tab_email_forwarding.title'] = 'Email Forwarding';
 $lang['Namesilo.tab_email_forwarding.desc'] = 'Email forwarding is automatically directing email sent from one address to a different email address. For example, if you had an existing email address of email@email.com, and then registered the domain newdomain.com, you could use email forward to direct sales@newdomain.com to your existing email@email.com email address.';
 $lang['Namesilo.tab_email_forwarding.field_email_address'] = 'Email Address';

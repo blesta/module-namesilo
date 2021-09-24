@@ -53,7 +53,7 @@ class NamesiloEmailForwarding
     }
 
     /**
-     * Registers a new domain name.
+     * Removes an email forwarder
      *
      *  - domain The domain related to the email address to delete
      *  - email The forward to delete

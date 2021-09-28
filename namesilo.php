@@ -1473,32 +1473,18 @@ class Namesilo extends RegistrarModule
 
             // Check if DNS Management is enabled
             if (
-                !$this->featureServiceEnabled('dns_management', $service)
-                    && !$this->featurePackageEnabled('dns_management', $package)
+                $this->featurePackageEnabled('dns_management', $package)
+                    && !$this->featureServiceEnabled('dns_management', $service)
             ) {
                 unset($tabs['tabDnssec'], $tabs['tabDnsRecords']);
             }
 
             // Check if Email Forwarding is enabled
             if (
-                !$this->featureServiceEnabled('email_forwarding', $service)
-                    && !$this->featurePackageEnabled('email_forwarding', $package)
+                $this->featurePackageEnabled('email_forwarding', $package)
+                    && !$this->featureServiceEnabled('email_forwarding', $service)
             ) {
                 unset($tabs['tabEmailForwarding']);
-            }
-
-            // Check if EPP Code is enables
-            if (
-                (
-                    !$this->featureServiceEnabled('epp_code', $service)
-                        && !$this->featurePackageEnabled('epp_code', $package)
-                ) &&
-                (
-                    !$this->featureServiceEnabled('id_protection', $service)
-                        && !$this->featurePackageEnabled('id_protection', $package)
-                )
-            ) {
-                unset($tabs['tabSettings']);
             }
 
             return $tabs;
@@ -1599,21 +1585,14 @@ class Namesilo extends RegistrarModule
      */
     private function featureServiceEnabled($feature, $service)
     {
-        // Get package
-        Loader::loadModels($this, ['Packages', 'Companies']);
-        $package = $this->Packages->get($service->package_id ?? $service->package->id);
-
-        // Get company settings
-        $company_setting = $this->Companies->getSetting($package->company_id, 'domains_' . $feature . '_option_group');
-        $option_group = $company_setting->value ?? null;
-
         // Get service option groups
-        $service_options = [];
         foreach ($service->options as $option) {
-            $service_options[] = $option->option_id;
+            if ($option->option_name == $feature) {
+                return true;
+            }
         }
 
-        return in_array($option_group, $service_options);
+        return false;
     }
 
     /**
@@ -1626,17 +1605,15 @@ class Namesilo extends RegistrarModule
     private function featurePackageEnabled($feature, $package)
     {
         // Get company settings
-        Loader::loadModels($this, ['Companies']);
-        $company_setting = $this->Companies->getSetting($package->company_id, 'domains_' . $feature . '_option_group');
-        $option_group = $company_setting->value ?? null;
-
-        // Get package option groups
-        $package_options = [];
-        foreach ($package->option_groups as $option_group) {
-            $package_options[] = $option_group->id;
+        Loader::loadModels($this, ['PackageOptions']);
+        $options = $this->PackageOptions->getByPackageId($package->id);
+        foreach ($options as $option) {
+            if ($option->name == $feature) {
+                return true;
+            }
         }
 
-        return in_array($option_group, $package_options);
+        return false;
     }
 
     /**
@@ -2350,7 +2327,7 @@ class Namesilo extends RegistrarModule
         $option_group = $setting->value ?? null;
 
         if (!in_array($option_group, $service_options)) {
-            
+
         }
 
         // if the domain is pending transfer display a notice of such
@@ -2559,6 +2536,12 @@ class Namesilo extends RegistrarModule
         $domains = new NamesiloDomains($api);
         $transfer = new NamesiloDomainsTransfer($api);
 
+        // Determine if this service has access to id_protection or epp_code
+        $id_protection = !$this->featurePackageEnabled('id_protection', $package)
+                || $this->featureServiceEnabled('id_protection', $service);
+        $epp_code = !$this->featurePackageEnabled('epp_code', $package)
+                || $this->featureServiceEnabled('epp_code', $service);
+
         $fields = $this->serviceFieldsToObject($service->fields);
 
         if (!empty($post)) {
@@ -2566,13 +2549,13 @@ class Namesilo extends RegistrarModule
                 $response = $domains->emailVerification(['email' => $post['resend_verification_email']]);
                 $this->processResponse($api, $response);
             } else {
-                if (isset($post['registrar_lock'])) {
+                if ($epp_code && isset($post['registrar_lock'])) {
                     $LockAction = $post['registrar_lock'] == 'Yes' ? 'Lock' : 'Unlock';
                     $response = $domains->setRegistrarLock($LockAction, ['domain' => $fields->domain]);
                     $this->processResponse($api, $response);
                 }
 
-                if (isset($post['request_epp']) && $this->featureServiceEnabled('epp_code', $service)) {
+                if ($epp_code && isset($post['request_epp']) && $this->featureServiceEnabled('epp_code', $service)) {
                     $response = $transfer->getEpp(['domain' => $fields->domain]);
                     $this->processResponse($api, $response);
                     unset($post['request_epp']);
@@ -2586,7 +2569,8 @@ class Namesilo extends RegistrarModule
                 }
 
                 if (
-                    isset($post['whois_privacy_before'])
+                    $id_protection
+                        && isset($post['whois_privacy_before'])
                         && isset($post['whois_privacy'])
                         && $this->featureServiceEnabled('id_protection', $service)
                 ) {
@@ -2632,8 +2616,8 @@ class Namesilo extends RegistrarModule
             }
         }
 
-        $this->view->set('id_protection', $this->featureServiceEnabled('id_protection', $service));
-        $this->view->set('epp_code', $this->featureServiceEnabled('epp_code', $service));
+        $this->view->set('id_protection', $id_protection);
+        $this->view->set('epp_code', $epp_code);
         $this->view->set('vars', $vars);
         $this->view->setDefaultView(self::$defaultModuleView);
 

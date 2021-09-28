@@ -35,6 +35,8 @@
         <?php
     }
     $this->Form->end();
+
+    if (($id_protection ?? false) || ($epp_code ?? false)) {
     ?>
 
     <div class="title_row">
@@ -46,6 +48,9 @@
     ?>
     <div class="pad">
         <ul>
+            <?php
+            if (($epp_code ?? false)) {
+            ?>
             <li>
                 <?php
                 $this->Form->label($this->_('Namesilo.tab_settings.field_registrar_lock', true), 'registrar_lock');
@@ -63,6 +68,11 @@
                 $this->Form->label($this->_('Namesilo.tab_settings.field_request_epp', true), 'request_epp', ['class' => 'inline']);
                 ?>
             </li>
+            <?php
+            }
+
+            if (($id_protection ?? false)) {
+            ?>
             <li>
                 <?php
                 $this->Form->fieldHidden('whois_privacy_before', (isset($vars->whois_privacy) ? $vars->whois_privacy : null));
@@ -70,9 +80,13 @@
                 $this->Form->label($this->_('Namesilo.domain.WhoisPrivacy', true), 'whois_privacy', ['class' => 'inline']);
                 ?>
             </li>
+            <?php
+            }
+            ?>
         </ul>
     </div>
     <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_settings.field_submit'); ?></a></div>
     <?php
     $this->Form->end();
+    }
     ?>

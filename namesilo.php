@@ -2520,6 +2520,35 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Get a list of the TLD prices
+     *
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return array A list of all TLDs and their pricing
+     *    [tld => [currency => [year# => ['register' => price, 'transfer' => price, 'renew' => price]]]]
+     */
+    public function getTldPricing($module_row_id = null)
+    {
+        $this->setModuleRow($this->getModuleRow($module_row_id));
+        $tld_prices = $this->getPrices();
+        $tld_yearly_prices = [];
+        foreach ($tld_prices as $tld => $currency_prices) {
+            $tld_yearly_prices[$tld] = [];
+            foreach ($currency_prices as $currency => $prices) {
+                $tld_yearly_prices[$tld][$currency] = [];
+                foreach (range(1, 10) as $years) {
+                    $tld_yearly_prices[$tld][$currency][$years] = [
+                        'register' => $prices->registration * $years,
+                        'transfer' => $prices->transfer * $years,
+                        'renew' => $prices->renew * $years
+                    ];
+                }
+            }
+        }
+
+        return $tld_yearly_prices;
+    }
+
+    /**
      * Builds and returns the rules required to add/edit a module row
      *
      * @param array $vars An array reference of key/value data pairs
@@ -2871,6 +2900,12 @@ class Namesilo extends RegistrarModule
                 $pricing[$tld][$currency->code] = (object)[
                     'registration' => $this->Currencies->convert(
                         $tld_pricing->registration,
+                        'USD',
+                        $currency->code,
+                        Configure::get('Blesta.company_id')
+                    ),
+                    'transfer' => $this->Currencies->convert(
+                        $tld_pricing->transfer,
                         'USD',
                         $currency->code,
                         Configure::get('Blesta.company_id')

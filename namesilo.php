@@ -464,6 +464,10 @@ class Namesilo extends RegistrarModule
                 'domain' => $fields->{'domain'},
                 'years' => 1
             ];
+            
+            if (!empty($row->meta->payment_id)) {
+                $vars['payment_id'] = $row->meta->payment_id;
+            }
 
             if (!$years) {
                 foreach ($package->pricing as $pricing) {

@@ -2130,7 +2130,7 @@ class Namesilo extends RegistrarModule
             if (isset($ds->ds_record) && !is_array($ds->ds_record)) {
                 $ds->ds_record = [$ds->ds_record];
             } else {
-                $ds->ds_record = [];
+                $ds->ds_record = $ds->ds_record;
             }
 
             $vars->selects = Configure::get('Namesilo.dnssec');

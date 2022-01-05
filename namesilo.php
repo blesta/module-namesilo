@@ -226,11 +226,6 @@ class Namesilo extends RegistrarModule
             ['years' => true, 'transfer' => isset($vars['transfer']) ? $vars['transfer'] : 1]
         );
 
-        // Set the whois privacy field based on the config option
-        if ($this->featurePackageEnabled('id_protection', $package) && isset($vars['configoptions']['id_protection'])) {
-            $vars['private'] = $vars['configoptions']['id_protection'];
-        }
-
         // .ca and .us domains can't have traditional whois privacy
         if ($tld == '.ca' || $tld == '.us') {
             unset($input_fields['private']);
@@ -1160,7 +1155,7 @@ class Namesilo extends RegistrarModule
             }
 
             // Handle transfer request
-            if ((isset($vars->transfer) && $vars->transfer) || (isset($vars->auth) && $vars->auth)) {
+            if ((isset($vars->transfer) && $vars->transfer) || isset($vars->auth)) {
                 return $this->arrayToModuleFields(Configure::get('Namesilo.transfer_fields'), null, $vars);
             } else {
                 // Handle domain registration
@@ -1185,15 +1180,8 @@ class Namesilo extends RegistrarModule
                     'type' => 'text',
                 ];
 
-                $fields = array_merge($fields, Configure::get('Namesilo.nameserver_fields'));
-
-                // Remove privacy field when it is controlled by a config option
-                if ($this->featurePackageEnabled('id_protection', $package)) {
-                    unset($fields['private']);
-                }
-
                 $module_fields = $this->arrayToModuleFields(
-                    $fields,
+                    array_merge($fields, Configure::get('Namesilo.nameserver_fields')),
                     null,
                     $vars
                 );
@@ -1204,22 +1192,20 @@ class Namesilo extends RegistrarModule
                         $(document).ready(function() {
                             $('#transfer_id_0').prop('checked', true);
                             $('#auth_id').closest('li').hide();
-
                             // Set whether to show or hide the ACL option
                             $('#auth').closest('li').hide();
-                            if ($('input[name=\"transfer\"]:checked').val() == '1') {
+                            if ($('input[name=\"transfer\"]:checked').val() == '1')
                                 $('#auth_id').closest('li').show();
-                            }
 
                             $('input[name=\"transfer\"]').change(function() {
-                                if ($('input[name=\"transfer\"]:checked').val() == '1') {
+                                if ($(this).val() == '1'){
                                     $('#auth_id').closest('li').show();
                                     $('#ns1_id').closest('li').hide();
                                     $('#ns2_id').closest('li').hide();
                                     $('#ns3_id').closest('li').hide();
                                     $('#ns4_id').closest('li').hide();
                                     $('#ns5_id').closest('li').hide();
-                                } else {
+                                }else{
                                     $('#auth_id').closest('li').hide();
                                     $('#ns1_id').closest('li').show();
                                     $('#ns2_id').closest('li').show();
@@ -1228,8 +1214,6 @@ class Namesilo extends RegistrarModule
                                     $('#ns5_id').closest('li').show();
                                 }
                             });
-
-                            $('input[name=\"transfer\"]').change();
                         });
                     </script>"
                 );
@@ -1281,12 +1265,21 @@ class Namesilo extends RegistrarModule
                     (array) Configure::get('Namesilo.domain_fields' . $tld)
                 );
 
+                // .ca domains can't have traditional whois privacy
+                if ($tld == '.ca') {
+                    unset($fields['private']);
+                }
+
                 // We should already have the domain name don't make editable
                 $fields['domain']['type'] = 'hidden';
                 $fields['domain']['label'] = null;
                 // we already know we're doing a transfer, don't make it editable
                 $fields['transfer']['type'] = 'hidden';
                 $fields['transfer']['label'] = null;
+
+                $module_fields = $this->arrayToModuleFields($fields, null, $vars);
+
+                return $module_fields;
             } else {
                 // Handle domain registration
                 $fields = array_merge(
@@ -1295,18 +1288,17 @@ class Namesilo extends RegistrarModule
                     (array) Configure::get('Namesilo.domain_fields' . $tld)
                 );
 
+                // .ca domains can't have traditional whois privacy
+                if ($tld == '.ca') {
+                    unset($fields['private']);
+                }
 
                 // We should already have the domain name don't make editable
                 $fields['domain']['type'] = 'hidden';
                 $fields['domain']['label'] = null;
-            }
 
-            // .ca domains can't have traditional whois privacy
-            if ($tld == '.ca' || $this->featurePackageEnabled('id_protection', $package)) {
-                unset($fields['private']);
+                $module_fields = $this->arrayToModuleFields($fields, null, $vars);
             }
-
-            $module_fields = $this->arrayToModuleFields($fields, null, $vars);
         }
 
         // Determine whether this is an AJAX request
@@ -1552,18 +1544,32 @@ class Namesilo extends RegistrarModule
 
             // Check if DNS Management is enabled
             if (
-                $this->featurePackageEnabled('dns_management', $package)
-                    && !$this->featureServiceEnabled('dns_management', $service)
+                !$this->featureServiceEnabled('dns_management', $service)
+                    && !$this->featurePackageEnabled('dns_management', $package)
             ) {
                 unset($tabs['tabClientDnssec'], $tabs['tabClientDnsRecords']);
             }
 
             // Check if Email Forwarding is enabled
             if (
-                $this->featurePackageEnabled('email_forwarding', $package)
-                && !$this->featureServiceEnabled('email_forwarding', $service)
+                !$this->featureServiceEnabled('email_forwarding', $service)
+                && !$this->featurePackageEnabled('email_forwarding', $package)
             ) {
                 unset($tabs['tabClientEmailForwarding']);
+            }
+
+            // Check if ID Protection or EPP Code is enabled
+            if (
+                (
+                    !$this->featureServiceEnabled('epp_code', $service)
+                        && !$this->featurePackageEnabled('epp_code', $package)
+                ) &&
+                (
+                    !$this->featureServiceEnabled('id_protection', $service)
+                        && !$this->featurePackageEnabled('id_protection', $package)
+                )
+            ) {
+                unset($tabs['tabClientSettings']);
             }
 
             return $tabs;
@@ -2565,6 +2571,7 @@ class Namesilo extends RegistrarModule
                 if (
                     $id_protection
                         && isset($post['whois_privacy_before'])
+                        && isset($post['whois_privacy'])
                         && $this->featureServiceEnabled('id_protection', $service)
                 ) {
                     if ($post['whois_privacy_before'] == 'No' && $post['whois_privacy'] == 'Yes') {

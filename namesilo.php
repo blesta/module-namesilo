@@ -226,6 +226,11 @@ class Namesilo extends RegistrarModule
             ['years' => true, 'transfer' => isset($vars['transfer']) ? $vars['transfer'] : 1]
         );
 
+        // Set the whois privacy field based on the config option
+        if (isset($vars['configoptions']['id_protection'])) {
+            $vars['private'] = $vars['configoptions']['id_protection'];
+        }
+
         // .ca and .us domains can't have traditional whois privacy
         if ($tld == '.ca' || $tld == '.us') {
             unset($input_fields['private']);
@@ -374,10 +379,25 @@ class Namesilo extends RegistrarModule
      */
     public function editService($package, $service, array $vars = [], $parent_package = null, $parent_service = null)
     {
+        $row = $this->getModuleRow($package->module_row);
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $domains = new NamesiloDomains($api);
+
+        // Manually renew the domain
         $renew = isset($vars['renew']) ? (int) $vars['renew'] : 0;
         if ($renew > 0 && $vars['use_module'] == 'true') {
             $this->renewService($package, $service, $parent_package, $parent_service, $renew);
             unset($vars['renew']);
+        }
+
+        // Handle whois privacy via config option
+        $id_protection = $this->featureServiceEnabled('id_protection', $service);
+        if (!$id_protection && isset($vars['configoptions']['id_protection'])) {
+            $response = $domains->addPrivacy(['domain' => $this->getServiceDomain($service)]);
+            $this->processResponse($api, $response);
+        } elseif ($id_protection && !isset($vars['configoptions']['id_protection'])) {
+            $response = $domains->removePrivacy(['domain' => $this->getServiceDomain($service)]);
+            $this->processResponse($api, $response);
         }
 
         return null; // All this handled by admin/client tabs instead
@@ -1155,7 +1175,7 @@ class Namesilo extends RegistrarModule
             }
 
             // Handle transfer request
-            if ((isset($vars->transfer) && $vars->transfer) || isset($vars->auth)) {
+            if ((isset($vars->transfer) && $vars->transfer) || (isset($vars->auth) && $vars->auth)) {
                 return $this->arrayToModuleFields(Configure::get('Namesilo.transfer_fields'), null, $vars);
             } else {
                 // Handle domain registration
@@ -1194,18 +1214,19 @@ class Namesilo extends RegistrarModule
                             $('#auth_id').closest('li').hide();
                             // Set whether to show or hide the ACL option
                             $('#auth').closest('li').hide();
-                            if ($('input[name=\"transfer\"]:checked').val() == '1')
+                            if ($('input[name=\"transfer\"]:checked').val() == '1') {
                                 $('#auth_id').closest('li').show();
+                            }
 
                             $('input[name=\"transfer\"]').change(function() {
-                                if ($(this).val() == '1'){
+                                if ($('input[name=\"transfer\"]:checked').val() == '1') {
                                     $('#auth_id').closest('li').show();
                                     $('#ns1_id').closest('li').hide();
                                     $('#ns2_id').closest('li').hide();
                                     $('#ns3_id').closest('li').hide();
                                     $('#ns4_id').closest('li').hide();
                                     $('#ns5_id').closest('li').hide();
-                                }else{
+                                } else {
                                     $('#auth_id').closest('li').hide();
                                     $('#ns1_id').closest('li').show();
                                     $('#ns2_id').closest('li').show();
@@ -1214,6 +1235,8 @@ class Namesilo extends RegistrarModule
                                     $('#ns5_id').closest('li').show();
                                 }
                             });
+
+                            $('input[name=\"transfer\"]').change();
                         });
                     </script>"
                 );
@@ -1472,18 +1495,12 @@ class Namesilo extends RegistrarModule
             ];
 
             // Check if DNS Management is enabled
-            if (
-                $this->featurePackageEnabled('dns_management', $package)
-                    && !$this->featureServiceEnabled('dns_management', $service)
-            ) {
+            if (!$this->featureServiceEnabled('dns_management', $service)) {
                 unset($tabs['tabDnssec'], $tabs['tabDnsRecords']);
             }
 
             // Check if Email Forwarding is enabled
-            if (
-                $this->featurePackageEnabled('email_forwarding', $package)
-                    && !$this->featureServiceEnabled('email_forwarding', $service)
-            ) {
+            if (!$this->featureServiceEnabled('email_forwarding', $service)) {
                 unset($tabs['tabEmailForwarding']);
             }
 
@@ -1543,33 +1560,13 @@ class Namesilo extends RegistrarModule
             ];
 
             // Check if DNS Management is enabled
-            if (
-                !$this->featureServiceEnabled('dns_management', $service)
-                    && !$this->featurePackageEnabled('dns_management', $package)
-            ) {
+            if (!$this->featureServiceEnabled('dns_management', $service)) {
                 unset($tabs['tabClientDnssec'], $tabs['tabClientDnsRecords']);
             }
 
             // Check if Email Forwarding is enabled
-            if (
-                !$this->featureServiceEnabled('email_forwarding', $service)
-                && !$this->featurePackageEnabled('email_forwarding', $package)
-            ) {
+            if (!$this->featureServiceEnabled('email_forwarding', $service)) {
                 unset($tabs['tabClientEmailForwarding']);
-            }
-
-            // Check if ID Protection or EPP Code is enabled
-            if (
-                (
-                    !$this->featureServiceEnabled('epp_code', $service)
-                        && !$this->featurePackageEnabled('epp_code', $package)
-                ) &&
-                (
-                    !$this->featureServiceEnabled('id_protection', $service)
-                        && !$this->featurePackageEnabled('id_protection', $package)
-                )
-            ) {
-                unset($tabs['tabClientSettings']);
             }
 
             return $tabs;
@@ -1588,27 +1585,6 @@ class Namesilo extends RegistrarModule
         // Get service option groups
         foreach ($service->options as $option) {
             if ($option->option_name == $feature) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Checks if a feature is enabled for a given package
-     *
-     * @param string $feature The name of the feature to check if it's enabled (e.g. id_protection)
-     * @param stdClass $package An object representing the package
-     * @return bool True if the feature is enabled, false otherwise
-     */
-    private function featurePackageEnabled($feature, $package)
-    {
-        // Get company settings
-        Loader::loadModels($this, ['PackageOptions']);
-        $options = $this->PackageOptions->getByPackageId($package->id);
-        foreach ($options as $option) {
-            if ($option->name == $feature) {
                 return true;
             }
         }
@@ -2043,37 +2019,39 @@ class Namesilo extends RegistrarModule
 
         $fields = $this->serviceFieldsToObject($service->fields);
 
-        $tld = $this->getTld($fields->domain, $row);
-        $sld = substr($fields->domain, 0, -strlen($tld));
-
         if (!empty($post)) {
             // Delete email forwarder
-            if (!empty($_POST['delete_email'])) {
+            if (!empty($post['delete_email'])) {
                 $args = [
                     'domain' => $fields->domain,
-                    'email' => explode('@', $_POST['delete_email'])[0] ?? ''
+                    'email' => explode('@', $post['delete_email'])[0] ?? ''
                 ];
                 $response = $email_forwarding->deleteEmailForward($args);
                 $this->processResponse($api, $response);
-            }
-
-            // Add or update email forwarders
-            foreach ($post['emails'] as $email => $forwarders) {
-                $args_forwarders = [];
-                $i = 1;
-                foreach ($forwarders as $forwarder) {
-                    if (!empty($forwarder)) {
-                        $args_forwarders['forward' . $i] = $forwarder;
-                        $i++;
-                    }
+            } else {
+                // Add a new forwarder
+                if (!empty($post['new_email'])) {
+                    $post['emails'][$post['new_email'] . '@' . $fields->domain] = [$post['new_email_to']];
                 }
 
-                $args = array_merge([
-                    'domain' => $fields->domain,
-                    'email' => $email
-                ], $args_forwarders);
-                $response = $email_forwarding->configureEmailForward($args);
-                $this->processResponse($api, $response);
+                // Add or update email forwarders
+                foreach ($post['emails'] ?? [] as $email => $forwarders) {
+                    $args_forwarders = [];
+                    $i = 1;
+                    foreach ($forwarders as $forwarder) {
+                        if (!empty($forwarder)) {
+                            $args_forwarders['forward' . $i] = $forwarder;
+                            $i++;
+                        }
+                    }
+
+                    $args = array_merge([
+                        'domain' => $fields->domain,
+                        'email' => $email
+                    ], $args_forwarders);
+                    $response = $email_forwarding->configureEmailForward($args);
+                    $this->processResponse($api, $response);
+                }
             }
 
             $vars = (object) $post;
@@ -2536,11 +2514,8 @@ class Namesilo extends RegistrarModule
         $domains = new NamesiloDomains($api);
         $transfer = new NamesiloDomainsTransfer($api);
 
-        // Determine if this service has access to id_protection or epp_code
-        $id_protection = !$this->featurePackageEnabled('id_protection', $package)
-                || $this->featureServiceEnabled('id_protection', $service);
-        $epp_code = !$this->featurePackageEnabled('epp_code', $package)
-                || $this->featureServiceEnabled('epp_code', $service);
+        // Determine if this service has access to epp_code
+        $epp_code = $this->featureServiceEnabled('epp_code', $service);
 
         $fields = $this->serviceFieldsToObject($service->fields);
 
@@ -2555,7 +2530,7 @@ class Namesilo extends RegistrarModule
                     $this->processResponse($api, $response);
                 }
 
-                if ($epp_code && isset($post['request_epp']) && $this->featureServiceEnabled('epp_code', $service)) {
+                if ($epp_code && isset($post['request_epp'])) {
                     $response = $transfer->getEpp(['domain' => $fields->domain]);
                     $this->processResponse($api, $response);
                     unset($post['request_epp']);
@@ -2568,31 +2543,12 @@ class Namesilo extends RegistrarModule
                     );
                 }
 
-                if (
-                    $id_protection
-                        && isset($post['whois_privacy_before'])
-                        && isset($post['whois_privacy'])
-                        && $this->featureServiceEnabled('id_protection', $service)
-                ) {
-                    if ($post['whois_privacy_before'] == 'No' && $post['whois_privacy'] == 'Yes') {
-                        $response = $domains->addPrivacy(['domain' => $fields->domain]);
-                        $this->processResponse($api, $response);
-                    } elseif ($post['whois_privacy_before'] == 'Yes' && !isset($post['whois_privacy'])) {
-                        $response = $domains->removePrivacy(['domain' => $fields->domain]);
-                        $this->processResponse($api, $response);
-                    }
-                }
-
                 $vars = (object) $post;
             }
         }
 
         $info = $domains->getDomainInfo(['domain' => $fields->domain]);
         $info_response = $info->response();
-
-        if (isset($info_response->private)) {
-            $vars->whois_privacy = $info_response->private;
-        }
 
         if (isset($info_response->locked)) {
             $vars->registrar_lock = $info_response->locked;
@@ -2616,7 +2572,6 @@ class Namesilo extends RegistrarModule
             }
         }
 
-        $this->view->set('id_protection', $id_protection);
         $this->view->set('epp_code', $epp_code);
         $this->view->set('vars', $vars);
         $this->view->setDefaultView(self::$defaultModuleView);

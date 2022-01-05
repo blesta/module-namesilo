@@ -26,68 +26,51 @@
             </div>
         </div>
 
+        <?php
+        if ($epp_code ?? true) {
+        ?>
         <div class="col-md-12">
             <?php
             $this->Form->create();
             ?>
-                <h4 class="mt-3"><?php $this->_('Namesilo.tab_settings.field_registrar_lock'); ?></h4>
-                <div class="form-group">
-                    <div class="radio">
-                        <label>
-                            <?php
-                            $this->Form->fieldRadio('registrar_lock', 'Yes', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'Yes');
-                            $this->_('Namesilo.tab_settings.field_registrar_lock_yes');
-                            ?>
-                        </label>
-                    </div>
-                    <div class="radio">
-                        <label>
-                            <?php
-                            $this->Form->fieldRadio('registrar_lock', 'No', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'No');
-                            $this->_('Namesilo.tab_settings.field_registrar_lock_no');
-                            ?>
-                        </label>
-                    </div>
+            <h4 class="mt-3"><?php $this->_('Namesilo.tab_settings.field_registrar_lock'); ?></h4>
+            <div class="form-group">
+                <div class="radio">
+                    <label>
+                        <?php
+                        $this->Form->fieldRadio('registrar_lock', 'Yes', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'Yes');
+                        $this->_('Namesilo.tab_settings.field_registrar_lock_yes');
+                        ?>
+                    </label>
                 </div>
-                <?php
-                if ($epp_code ?? true) {
-                ?>
-                <div class="form-group">
-                    <div class="checkbox">
-                        <label>
-                            <?php
-                            $this->Form->fieldCheckbox('request_epp', 'true', (isset($vars->request_epp) ? $vars->request_epp : null) == 'true');
-                            $this->_('Namesilo.tab_settings.field_request_epp');
-                            ?>
-                        </label>
-                    </div>
+                <div class="radio">
+                    <label>
+                        <?php
+                        $this->Form->fieldRadio('registrar_lock', 'No', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'No');
+                        $this->_('Namesilo.tab_settings.field_registrar_lock_no');
+                        ?>
+                    </label>
                 </div>
-                <?php
-                }
-                ?>
-                <?php
-                if ($id_protection ?? false) {
-                ?>
-                <div class="form-group">
-                    <div class="checkbox">
-                        <label>
-                            <?php
-                            $this->Form->fieldHidden('whois_privacy_before', (isset($vars->whois_privacy) ? $vars->whois_privacy : null));
-                            $this->Form->fieldCheckbox('whois_privacy', 'Yes', (isset($vars->whois_privacy) ? $vars->whois_privacy : null) == 'Yes', ['id' => 'whois_privacy']);
-                            $this->_('Namesilo.domain.WhoisPrivacy');
-                            ?>
-                        </label>
-                    </div>
+            </div>
+            <div class="form-group">
+                <div class="checkbox">
+                    <label>
+                        <?php
+                        $this->Form->fieldCheckbox('request_epp', 'true', (isset($vars->request_epp) ? $vars->request_epp : null) == 'true');
+                        $this->_('Namesilo.tab_settings.field_request_epp');
+                        ?>
+                    </label>
                 </div>
-                <?php
-                    }
-                ?>
+            </div>
 
-                <button class="btn btn-light float-right" type="submit">
-                    <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_settings.field_submit'); ?>
-                </button>
+            <button class="btn btn-light float-right" type="submit">
+                <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_settings.field_submit'); ?>
+            </button>
             <?php
             $this->Form->end();
             ?>
         </div>
+        <?php
+        }
+        ?>
     </div>

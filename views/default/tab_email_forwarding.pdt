@@ -20,12 +20,10 @@
                             </tr>
                         </thead>
 
-                        <?php
-                        foreach ($vars->addresses ?? [] as $address) {
-                        ?>
-                            <tbody>
-                                <?php
-                                $i = 0;
+                        <tbody>
+                            <?php
+                            $i = 0;
+                            foreach ($vars->addresses ?? [] as $address) {
                                 foreach ($address->forwards_to as $index => $email) {
                                 ?>
                                     <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
@@ -61,17 +59,16 @@
                                     $i++;
                                 }
                                 ?>
-                                <tr>
+                                <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
                                     <td class="text-muted"></td>
                                     <td colspan="2"><?php $this->Form->fieldText('emails[' . ($address->email ?? null) . '][]'); ?></td>
                                 </tr>
-                            </tbody>
-                        <?php
-                        }
-                        ?>
+                                <?php
+                                $i++;
+                            }
+                            ?>
 
-                        <tbody>
-                            <tr>
+                            <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
                                 <td><?php $this->Form->fieldText('new_email'); ?><?php echo '@' . $domain; ?></td>
                                 <td><?php $this->Form->fieldText('new_email_to'); ?></td>
                             </tr>

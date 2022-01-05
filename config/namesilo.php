@@ -26,11 +26,6 @@ Configure::set('Namesilo.transfer_fields', [
         'label' => Language::_('Namesilo.transfer.EPPCode', true),
         'type' => 'text'
     ],
-    'private' => [
-        'label' => Language::_('Namesilo.domain.WhoisPrivacy', true),
-        'type' => 'checkbox',
-        'options' => [ '1' => 'Yes' ],
-    ],
 ]);
 
 // Domain fields
@@ -38,11 +33,6 @@ Configure::set('Namesilo.domain_fields', [
     'domain' => [
         'label' => Language::_('Namesilo.domain.domain', true),
         'type' => 'text'
-    ],
-    'private' => [
-        'label' => Language::_('Namesilo.domain.WhoisPrivacy', true),
-        'type' => 'checkbox',
-        'options' => [ '1' => 'Yes' ],
     ],
 ]);
 

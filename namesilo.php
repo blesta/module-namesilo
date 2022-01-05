@@ -2293,21 +2293,6 @@ class Namesilo extends RegistrarModule
     {
         $vars = new stdClass();
 
-        // Get service option groups
-        $service_options = [];
-        foreach ($service->options as $option) {
-            $service_options[] = $option->id;
-        }
-
-        // Validate if the service has access to this tab
-        Loader::loadModels($this, ['Companies']);
-        $setting = $this->Companies->getSetting($package->company_id, 'domains_dns_management_option_group');
-        $option_group = $setting->value ?? null;
-
-        if (!in_array($option_group, $service_options)) {
-
-        }
-
         // if the domain is pending transfer display a notice of such
         $checkDomainStatus = $this->checkDomainStatus($service, $package);
         if (isset($checkDomainStatus)) {
@@ -2360,7 +2345,7 @@ class Namesilo extends RegistrarModule
         if (isset($ds->ds_record) && !is_array($ds->ds_record)) {
             $ds->ds_record = [$ds->ds_record];
         } else {
-            $ds->ds_record = [];
+            $ds->ds_record = $ds->ds_record;
         }
 
         $vars->selects = Configure::get('Namesilo.dnssec');

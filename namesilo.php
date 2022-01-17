@@ -235,7 +235,7 @@ class Namesilo extends RegistrarModule
         if ($tld == '.ca' || $tld == '.us') {
             unset($input_fields['private']);
         }
-
+        
         if (isset($vars['use_module']) && $vars['use_module'] == 'true') {
             if ($package->meta->type == 'domain') {
                 $vars['years'] = 1;
@@ -1118,6 +1118,18 @@ class Namesilo extends RegistrarModule
             );
         }
         $fields->setField($tld_options);
+        
+        $epp_code_label = $fields->label(Language::_('Namesilo.package_fields.epp_code', true));
+        $epp_code_label->attach(
+            $fields->fieldCheckbox(
+                'meta[epp_code]',
+                '1',
+                $vars->meta['epp_code'] ?? '0' == '1',
+                ['id' => 'epp_code'],
+                $fields->label(Language::_('Namesilo.package_fields.enable_epp_code', true), 'epp_code')
+            )
+        );
+        $fields->setField($epp_code_label);
 
         // Set nameservers
         for ($i = 1; $i <= 5; $i++) {
@@ -2504,7 +2516,7 @@ class Namesilo extends RegistrarModule
         $transfer = new NamesiloDomainsTransfer($api);
 
         // Determine if this service has access to epp_code
-        $epp_code = $this->featureServiceEnabled('epp_code', $service);
+        $epp_code = $package->meta->epp_code ?? '0';
 
         $fields = $this->serviceFieldsToObject($service->fields);
 

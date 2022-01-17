@@ -97,6 +97,8 @@ $lang['Namesilo.package_fields.ns2'] = 'Name Server 2';
 $lang['Namesilo.package_fields.ns3'] = 'Name Server 3';
 $lang['Namesilo.package_fields.ns4'] = 'Name Server 4';
 $lang['Namesilo.package_fields.ns5'] = 'Name Server 5';
+$lang['Namesilo.package_fields.epp_code'] = 'Epp Code';
+$lang['Namesilo.package_fields.enable_epp_code'] = 'Allow Access';
 
 // Service management
 $lang['Namesilo.tab_whois.title'] = 'Whois';

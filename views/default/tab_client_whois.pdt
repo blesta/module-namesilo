@@ -5,9 +5,11 @@
         <div class="col-md-12">
             <ul class="nav nav-tabs">
                 <?php
-                foreach ($sections as $index => $key) {
+                foreach ($sections ?? [] as $index => $key) {
                     ?>
-                    <li<?php echo $index == 0 ? ' class="active"' : ''; ?>><a href="#<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>" data-toggle="tab"><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></a></li>
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo $index == 0 ? ' active' : ''; ?>" href="#<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>" data-toggle="tab"><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></a>
+                    </li>
                     <?php
                 }
                 ?>
@@ -16,11 +18,11 @@
             <div class="tab-content martop10">
                 <?php
                 $i = 0;
-                foreach ($sections as $index => $key) {
+                foreach ($sections ?? [] as $index => $key) {
                     ?>
-                    <div class="tab-pane<?php echo $index == 0 ? ' active' : ''; ?>" id="<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>">
+                    <div class="tab-pane fade<?php echo $index == 0 ? ' show active' : ''; ?>" id="<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>">
                         <?php
-                        foreach ($fields as $field) {
+                        foreach ($fields ?? [] as $field) {
                             if (substr($field->params['for'], 0, strlen($key)) != $key) {
                                 continue;
                             }

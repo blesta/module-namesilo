@@ -97,6 +97,8 @@ $lang['Namesilo.package_fields.ns2'] = 'Name Server 2';
 $lang['Namesilo.package_fields.ns3'] = 'Name Server 3';
 $lang['Namesilo.package_fields.ns4'] = 'Name Server 4';
 $lang['Namesilo.package_fields.ns5'] = 'Name Server 5';
+$lang['Namesilo.package_fields.epp_code'] = 'Epp Code';
+$lang['Namesilo.package_fields.enable_epp_code'] = 'Allow Access';
 
 // Service management
 $lang['Namesilo.tab_whois.title'] = 'Whois';
@@ -106,11 +108,20 @@ $lang['Namesilo.tab_whois.section_tech'] = 'Technical';
 $lang['Namesilo.tab_whois.section_billing'] = 'Billing';
 $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
 
+$lang['Namesilo.tab_email_forwarding.title'] = 'Email Forwarding';
+$lang['Namesilo.tab_email_forwarding.desc'] = 'Email forwarding is automatically directing email sent from one address to a different email address. For example, if you had an existing email address of email@email.com, and then registered the domain newdomain.com, you could use email forward to direct sales@newdomain.com to your existing email@email.com email address.';
+$lang['Namesilo.tab_email_forwarding.field_email_address'] = 'Email Address';
+$lang['Namesilo.tab_email_forwarding.field_forward_to'] = 'Forward To';
+$lang['Namesilo.tab_email_forwarding.field_delete'] = 'Delete';
+$lang['Namesilo.tab_email_forwarding.field_submit'] = 'Update Forwarders';
+
 $lang['Namesilo.tab_nameservers.title'] = 'Name Servers';
-$lang['Namesilo.tab_nameserver.field_ns'] = 'Name Server %1$s'; // %1$s is the name server number
+$lang['Namesilo.tab_nameservers.desc'] = 'We allow up to 5 possible name servers, although only 2 are required. It is important that you do not enter the IP address of the name server, but instead enter the actual name server name. Name servers are typically formatted like "NS1.host.com".';
+$lang['Namesilo.tab_nameservers.field_ns'] = 'Name Server %1$s'; // %1$s is the name server number
 $lang['Namesilo.tab_nameservers.field_submit'] = 'Update Name Servers';
 
 $lang['Namesilo.tab_hosts.title'] = 'Register Nameservers';
+$lang['Namesilo.tab_hosts.desc'] = 'If you are already familiar with setting up custom name servers and understand how DNS works, you can create custom name servers and assign it to your domain.';
 $lang['Namesilo.tab_hosts.field_host'] = 'Host %1$s'; // %1$s is the host number
 $lang['Namesilo.tab_hosts.field_ip'] = 'IP Address(es)';
 $lang['Namesilo.tab_hosts.field_hostname'] = 'Host';

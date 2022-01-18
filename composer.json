@@ -4,7 +4,7 @@
     "license": "proprietary",
     "type": "blesta-module",
     "require": {
-        "php": ">=5.4.0",
+        "php": ">=7.2.0",
         "blesta/composer-installer": "~1.0"
     },
     "authors": [

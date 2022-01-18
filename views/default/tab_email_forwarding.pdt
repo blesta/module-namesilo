@@ -1,0 +1,84 @@
+    <div class="title_row first">
+        <h3><?php $this->_('Namesilo.tab_email_forwarding.title'); ?></h3>
+    </div>
+
+    <?php
+    $this->Form->create();
+    ?>
+        <div class="pad">
+            <ul>
+                <li>
+                    <p><?php $this->_('Namesilo.tab_email_forwarding.desc'); ?></p>
+                </li>
+                <li>
+                    <table class="table">
+                        <thead>
+                            <tr class="heading_row">
+                                <td><?php $this->_('Namesilo.tab_email_forwarding.field_email_address'); ?></td>
+                                <td><?php $this->_('Namesilo.tab_email_forwarding.field_forward_to'); ?></td>
+                                <td><?php $this->_('Namesilo.tab_email_forwarding.field_delete'); ?></td>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <?php
+                            $i = 0;
+                            foreach ($vars->addresses ?? [] as $address) {
+                                foreach ($address->forwards_to as $index => $email) {
+                                ?>
+                                    <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
+                                        <td<?php echo $index !== 0 ? ' class="text-muted"' : ''; ?>><?php echo $address->email ?? ''; ?></td>
+                                        <td><?php $this->Form->fieldText('emails[' . ($address->email ?? null) . '][]', $email ?? ''); ?></td>
+                                        <?php
+                                        if ($index == 0) {
+                                        ?>
+                                            <td>
+                                                <?php
+                                                $button_attributes = [
+                                                    'class' => 'btn btn-sm btn-danger',
+                                                    'value' => ($address->email ?? null),
+                                                    'type' => 'submit',
+                                                ];
+
+                                                $this->Form->fieldButton(
+                                                    'delete_email',
+                                                    $this->_('Namesilo.tab_dnssec.field_delete', true),
+                                                    $button_attributes
+                                                );
+                                                ?>
+                                            </td>
+                                        <?php
+                                        } else {
+                                        ?>
+                                            <td></td>
+                                        <?php
+                                        }
+                                        ?>
+                                    </tr>
+                                <?php
+                                    $i++;
+                                }
+                                ?>
+                                <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
+                                    <td class="text-muted"></td>
+                                    <td colspan="2"><?php $this->Form->fieldText('emails[' . ($address->email ?? null) . '][]'); ?></td>
+                                </tr>
+                                <?php
+                                $i++;
+                            }
+                            ?>
+
+                            <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
+                                <td><?php $this->Form->fieldText('new_email'); ?><?php echo '@' . $domain; ?></td>
+                                <td><?php $this->Form->fieldText('new_email_to'); ?></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </li>
+            </ul>
+        </div>
+        <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_email_forwarding.field_submit'); ?></a></div>
+    <?php
+    $this->Form->end();
+    ?>
+

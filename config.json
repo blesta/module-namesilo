@@ -32,5 +32,11 @@
         "module": [],
         "package": [],
         "service": ["domain", "transfer", "private", "ns1", "ns2", "ns3", "ns4", "ns5"]
+    },
+    "features": {
+        "dns_management": 1,
+        "email_forwarding": 1,
+        "id_protection": 1,
+        "epp_code": 1
     }
 }

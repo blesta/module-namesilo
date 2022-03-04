@@ -235,7 +235,7 @@ class Namesilo extends RegistrarModule
         if ($tld == '.ca' || $tld == '.us') {
             unset($input_fields['private']);
         }
-        
+
         if (isset($vars['use_module']) && $vars['use_module'] == 'true') {
             if ($package->meta->type == 'domain') {
                 $vars['years'] = 1;
@@ -1118,7 +1118,7 @@ class Namesilo extends RegistrarModule
             );
         }
         $fields->setField($tld_options);
-        
+
         $epp_code_label = $fields->label(Language::_('Namesilo.package_fields.epp_code', true));
         $epp_code_label->attach(
             $fields->fieldCheckbox(
@@ -2563,7 +2563,7 @@ class Namesilo extends RegistrarModule
             $registrant_verification = $domains->registrantVerificationStatus()->response(true);
             if ($registrant_verification) {
                 if (!is_array($registrant_verification['email'])) {
-                    $registrant_verification['email'] = [$registrant_verification->email];
+                    $registrant_verification['email'] = [$registrant_verification['email']];
                 }
                 foreach ($registrant_verification['email'] as $key => $registrant) {
                     if (isset($registrant['email_address']) && $registrant['email_address'] == $registrant_email) {

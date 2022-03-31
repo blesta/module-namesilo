@@ -55,6 +55,40 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Performs migration of data from $current_version (the current installed version)
+     * to the given file set version. Sets Input errors on failure, preventing
+     * the module from being upgraded.
+     *
+     * @param string $current_version The current installed version of this module
+     */
+    public function upgrade($current_version)
+    {
+        // Upgrade if possible
+        if (version_compare($this->getVersion(), $current_version, '>')) {
+            // Handle the upgrade, set errors using $this->Input->setErrors() if any errors encountered
+            if (!isset($this->Record)) {
+                Loader::loadComponents($this, ['Record']);
+            }
+
+            // Upgrade to 2.0.0
+            if (version_compare($current_version, '2.0.0', '<')) {
+                $rows = $this->getRows();
+                foreach ($rows as $row) {
+                    // Delete tld pricing
+                    $this->Record->from('module_row_meta')
+                        ->where('module_row_meta.module_row_id', '=', $row->id)
+                        ->open()
+                            ->where('module_row_meta.key', 'LIKE', 'tld_%_pricing')
+                            ->orwhere('module_row_meta.key', '=', 'tld_packages_map')
+                            ->orwhere('module_row_meta.key', '=', 'tld_packages_settings')
+                        ->close()
+                        ->delete();
+                }
+            }
+        }
+    }
+
+    /**
      * Attempts to validate service info. This is the top-level error checking method. Sets Input errors on failure.
      *
      * @param stdClass $package A stdClass object representing the selected package
@@ -587,190 +621,53 @@ class Namesilo extends RegistrarModule
      */
     public function manageModule($module, array &$vars)
     {
-        $action = isset($_GET['action']) ? $_GET['action'] : null;
-
         // Load the required models
         Loader::loadModels($this, ['Languages', 'Settings', 'Currencies', 'Packages']);
 
-        if ($action == 'manage_packages') {
-            // Load Namesilo packages
-            Loader::load(__DIR__ . DS . 'includes' . DS . 'namesilo_packages.php');
-            $this->NamesiloPackages = new NamesiloPackages();
+        // Load the view into this object, so helpers can be automatically added to the view
+        $this->view = new View('manage', 'default');
+        $this->view->base_uri = $this->base_uri;
+        $this->view->setDefaultView(self::$defaultModuleView);
 
-            $post = $vars;
-            $vars = [];
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html', 'Widget']);
 
-            $this->view = new View('manage_packages', 'default');
-            $this->view->base_uri = $this->base_uri;
-            $this->view->setDefaultView(self::$defaultModuleView);
-
-            // Load the helpers required for this view
-            Loader::loadHelpers($this, ['Form', 'Html', 'Javascript', 'Widget', 'CurrencyFormat']);
-
-            // Fetch TLD prices
-            $tlds = $this->getPrices();
-
-            // Get all currencies
-            $currencies = $this->Form->collapseObjectArray(
-                $this->Currencies->getAll(Configure::get('Blesta.company_id')),
-                'code',
-                'code'
-            );
-
-            // Fetch module rows
-            $module_rows = $this->getRowsOptions();
-
-            // Fetch all available package groups
-            $package_groups = $this->Form->collapseObjectArray(
-                $this->Packages->getAllGroups(Configure::get('Blesta.company_id')),
-                'name',
-                'id'
-            );
-
-            // Fetch all installed languages
-            $languages = $this->Languages->getAll(Configure::get('Blesta.company_id'));
-
-            // Calculate maximum packages that can be saved at a time
-            $count_fields_per_currency = 5;
-            $count_fields_per_language = 7;
-            $count_settings_fields = 16;
-
-            $max_packages = round(
-                ((ini_get('max_input_vars') - (count($languages) * $count_fields_per_language) -
-                        $count_settings_fields) / ((count($currencies) * $count_fields_per_currency) + 1)),
-                0,
-                PHP_ROUND_HALF_DOWN
-            );
-
-            // Save packages
-            if (!empty($post)) {
-                $this->NamesiloPackages->process($post);
-
-                if (($errors = $this->NamesiloPackages->errors())) {
-                    $this->setMessage('error', reset($errors));
-                } else {
-                    $this->setMessage(
-                        'success',
-                        Language::_(
-                            'Namesilo.!success.packages_saved',
-                            true
-                        )
-                    );
-                }
-            }
-
-            // Fetch stored settings
-            $module_row = $this->getRow();
-            $settings = $this->NamesiloPackages->getSettings($module_row->id);
-
-            $post = array_merge($settings, $post);
-
-            // Set view
-            $this->view->set('tlds', $tlds);
-            $this->view->set('module_rows', $module_rows);
-            $this->view->set('languages', $languages);
-            $this->view->set('currencies', $currencies);
-            $this->view->set('package_groups', $package_groups);
-            $this->view->set('max_packages', $max_packages);
-            $this->view->set('vars', !empty($post) ? (object) $post : (object) $settings);
-
-            $this->view->set('messages', $this->getMessages());
-            $this->view->set('package_name_tags', $this->getPackageNameTags());
-
-            return $this->view->fetch();
-        } elseif ($action == 'tld_rows') {
-            // Load Namesilo packages
-            Loader::load(__DIR__ . DS . 'includes' . DS . 'namesilo_packages.php');
-            $this->NamesiloPackages = new NamesiloPackages();
-
-            // Fetch stored packages vars, if available
-            $module_row = $this->getRow();
-            $settings = $this->NamesiloPackages->getSettings($module_row->id);
-
-            $this->view = new View('tld_rows', 'default');
-            $this->view->base_uri = $this->base_uri;
-            $this->view->setDefaultView(self::$defaultModuleView);
-
-            // Load the helpers required for this view
-            Loader::loadHelpers($this, ['Form', 'Html', 'CurrencyFormat']);
-
-            // Fetch TLD prices
-            $tlds = $this->getPrices();
-            $tld = array_key_exists('.' . $_GET['tld'], $tlds) ? '.' . $_GET['tld'] : null;
-
-            // Get all currencies
-            $currencies = $this->Form->collapseObjectArray(
-                $this->Currencies->getAll(Configure::get('Blesta.company_id')),
-                'code',
-                'code'
-            );
-
-            // Set view
-            $this->view->set('tld', $tld);
-            $this->view->set('pricing', $tlds[$tld]);
-            $this->view->set('currencies', $currencies);
-            $this->view->set('vars', !empty($vars) ? (object) $vars : (object) $settings);
-
-            $this->view->set('messages', $this->getMessages());
-            $this->view->set('package_name_tags', $this->getPackageNameTags());
-
-            echo $this->view->fetch();
-            exit;
-        } else {
-            // Load the view into this object, so helpers can be automatically added to the view
-            $this->view = new View('manage', 'default');
-            $this->view->base_uri = $this->base_uri;
-            $this->view->setDefaultView(self::$defaultModuleView);
-
-            // Load the helpers required for this view
-            Loader::loadHelpers($this, ['Form', 'Html', 'Widget']);
-
-            #
-            #
-            # TODO: add tab to check status of all transfers: check if possible with Namesilo...
-            # ref: NamesiloDomainsTransfer->getList()
-            #
-            #
-            $link_buttons = [];
-            foreach ($module->rows as $row) {
-                if (isset($row->meta->key)) {
-                    $link_buttons = [
-                        [
-                            'name' => Language::_('Namesilo.manage.manage_packages', true),
-                            'attributes' => [
-                                'href' => [
-                                    'href' => $this->base_uri . 'settings/company/modules/manage/' . $module->id .
-                                        '?action=manage_packages'
-                                ]
-                            ]
-                        ],
-                        [
-                            'name' => Language::_('Namesilo.manage.sync_renew_dates', true),
-                            'attributes' => [
-                                'href' => [
-                                    'href' => $this->base_uri . 'settings/company/modules/addrow/' . $module->id .
-                                        '?action=sync_renew_dates'
-                                ]
-                            ]
-                        ],
-                        [
-                            'name' => Language::_('Namesilo.manage.audit_domains', true),
-                            'attributes' => [
+        #
+        #
+        # TODO: add tab to check status of all transfers: check if possible with Namesilo...
+        # ref: NamesiloDomainsTransfer->getList()
+        #
+        #
+        $link_buttons = [];
+        foreach ($module->rows as $row) {
+            if (isset($row->meta->key)) {
+                $link_buttons = [
+                    [
+                        'name' => Language::_('Namesilo.manage.sync_renew_dates', true),
+                        'attributes' => [
+                            'href' => [
                                 'href' => $this->base_uri . 'settings/company/modules/addrow/' . $module->id .
-                                    '?action=audit_domains'
+                                    '?action=sync_renew_dates'
                             ]
                         ]
-                    ];
-                    break;
-                }
+                    ],
+                    [
+                        'name' => Language::_('Namesilo.manage.audit_domains', true),
+                        'attributes' => [
+                            'href' => $this->base_uri . 'settings/company/modules/addrow/' . $module->id .
+                                '?action=audit_domains'
+                        ]
+                    ]
+                ];
+                break;
             }
-
-            $this->view->set('module', $module);
-            $this->view->set('link_buttons', $link_buttons);
-            $this->view->set('module', $module);
-
-            return $this->view->fetch();
         }
+
+        $this->view->set('module', $module);
+        $this->view->set('link_buttons', $link_buttons);
+        $this->view->set('module', $module);
+
+        return $this->view->fetch();
     }
 
     /**
@@ -3156,36 +3053,6 @@ class Namesilo extends RegistrarModule
         }
 
         return $pricing;
-    }
-
-    /**
-     * Returns a string containing all package name tags available by default
-     *
-     * @return string A string containing all package name tags available by default
-     */
-    private function getPackageNameTags()
-    {
-        // Fetch the parser options to determine the start and end characters for template variables
-        $parser_options = Configure::get('Blesta.parser_options');
-
-        // Build all tags available by default in the welcome email
-        $package_name_tags = '';
-
-        $tags = [
-            'domain' => ['tld', 'tld_uppercase']
-        ];
-
-        if (!empty($tags)) {
-            $i = 0;
-            foreach ($tags as $group => $group_tags) {
-                foreach ($group_tags as $tag) {
-                    $package_name_tags .= ($i++ > 0 ? ' ' : '') . $parser_options['VARIABLE_START'] . $group . '.' .
-                        $tag . $parser_options['VARIABLE_END'];
-                }
-            }
-        }
-
-        return $package_name_tags;
     }
 
     /**

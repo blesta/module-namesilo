@@ -18,8 +18,6 @@ $lang['Namesilo.manage.module_rows.edit'] = 'Edit';
 $lang['Namesilo.manage.module_rows.delete'] = 'Delete';
 $lang['Namesilo.manage.module_rows.confirm_delete'] = 'Are you sure you want to delete this account?';
 $lang['Namesilo.manage.module_rows_no_results'] = 'There are no accounts.';
-$lang['Namesilo.manage.manage_packages'] = 'Manage Packages';
-$lang['Namesilo.manage.sync_renew_dates'] = 'Sync Renew Dates';
 $lang['Namesilo.manage.audit_domains'] = 'Audit Domains';
 
 // Audit Domains
@@ -27,45 +25,6 @@ $lang['Namesilo.add_row.audit_domains.box_title'] = 'Audit Domains';
 $lang['Namesilo.manage.audit_domains.description'] = 'This is a summary of domains from the NameSilo API compared against domains currently active/suspended in Blesta.  This is to help ensure that you aren\'t paying for domains that you aren\'t being paid for.';
 $lang['Namesilo.manage.audit_domains.no_issues'] = 'No issues detected.';
 $lang['Namesilo.manage.audit_domains.results'] = 'Audit Results';
-
-// Manage packages
-$lang['Namesilo.manage.manage_packages.box_title'] = 'Manage Domain Packages';
-$lang['Namesilo.manage.manage_packages.heading_basic'] = 'Basic';
-$lang['Namesilo.manage.manage_packages.heading_module_options'] = 'Module Options';
-$lang['Namesilo.manage.manage_packages.heading_available_tlds'] = 'Available TLDs';
-$lang['Namesilo.manage.manage_packages.heading_pricing'] = 'Pricing';
-$lang['Namesilo.manage.manage_packages.heading_group'] = 'Group Membership';
-$lang['Namesilo.manage.manage_packages_heading.price_markup'] = 'Price Markup (%)';
-$lang['Namesilo.manage.manage_packages_heading.renew_price_markup'] = 'Renewal Price Markup (%)';
-$lang['Namesilo.manage.manage_packages_heading.options'] = 'Options';
-$lang['Namesilo.manage.manage_packages_heading.tld'] = 'TLD';
-$lang['Namesilo.manage.manage_packages_heading.currency'] = 'Currency';
-$lang['Namesilo.manage.manage_packages_heading.previous_registration_price'] = 'Previous Registration Price';
-$lang['Namesilo.manage.manage_packages_heading.previous_renewal_price'] = 'Previous Renewal Price';
-$lang['Namesilo.manage.manage_packages_heading.current_registration_price'] = 'Current Registration Price';
-$lang['Namesilo.manage.manage_packages_heading.current_renewal_price'] = 'Current Renewal Price';
-$lang['Namesilo.manage.manage_packages_heading.lock'] = 'Lock';
-$lang['Namesilo.manage.manage_packages_heading.price'] = 'Price';
-$lang['Namesilo.manage.manage_packages_heading.renew_price'] = 'Renewal Price';
-$lang['Namesilo.manage.manage_packages.text_tags'] = 'Tags:';
-$lang['Namesilo.manage.manage_packages.field_packagename'] = 'Package Name';
-$lang['Namesilo.manage.manage_packages.field_description'] = 'Description';
-$lang['Namesilo.manage.manage_packages.field_description_html'] = 'HTML';
-$lang['Namesilo.manage.manage_packages.field_description_text'] = 'Text';
-$lang['Namesilo.manage.manage_packages.field_upgrades_use_renewal'] = 'Use renewal prices for package upgrades';
-$lang['Namesilo.manage.manage_packages.field_price_enable_renews_all'] = 'Enable All Renewal Prices';
-$lang['Namesilo.manage.manage_packages.field_taxable'] = 'Taxable';
-$lang['Namesilo.manage.manage_packages.field_package_group'] = 'Package Group';
-$lang['Namesilo.manage.manage_packages.text_manage_packages'] = 'In order to prevent timeouts a maximum of %1$s packages can be saved at a time. Run this as many times as needed to save all packages.';
-$lang['Namesilo.manage.manage_packages.save_packages_btn'] = 'Save Packages';
-
-// Sync renew dates
-$lang['Namesilo.manage.sync_renew_dates.box_title'] = 'Sync Domain Renewal Dates';
-$lang['Namesilo.manage.sync_renew_dates.description'] = "This tool synchronizes a service's renewal date with the domain's actual expiration date, taking into account the suspension threshold (as to ensure auto-renewal doesn't renew the domain if the customer hasn't paid). Highlighted rows have a difference greater than 9 months (270 days) and should be checked before syncing.";
-$lang['Namesilo.manage.sync_renew_dates.results'] = 'Synchronization Results';
-$lang['Namesilo.manage.sync_renew_dates.out_of_sync'] = 'Out Of Sync Renew Dates';
-$lang['Namesilo.manage.sync_renew_dates.errors'] = 'Errors';
-$lang['Namesilo.manage.sync_renew_dates.sync_btn'] = 'Synchronize';
 
 // Row Meta
 $lang['Namesilo.row_meta.user'] = 'User';

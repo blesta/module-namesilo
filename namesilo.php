@@ -643,15 +643,6 @@ class Namesilo extends RegistrarModule
             if (isset($row->meta->key)) {
                 $link_buttons = [
                     [
-                        'name' => Language::_('Namesilo.manage.sync_renew_dates', true),
-                        'attributes' => [
-                            'href' => [
-                                'href' => $this->base_uri . 'settings/company/modules/addrow/' . $module->id .
-                                    '?action=sync_renew_dates'
-                            ]
-                        ]
-                    ],
-                    [
                         'name' => Language::_('Namesilo.manage.audit_domains', true),
                         'attributes' => [
                             'href' => $this->base_uri . 'settings/company/modules/addrow/' . $module->id .
@@ -744,26 +735,6 @@ class Namesilo extends RegistrarModule
             $this->view->set('vars', (object) $vars);
 
             return $this->view->fetch();
-        } elseif ($action == 'sync_renew_dates') {
-            $module_row = $this->getRow();
-
-            // Get all the services for the module row.  This basically assumes there is only on Namesilo module row
-            $services = $this->Record->select(['services.id'])
-                ->from('services')
-                ->where('module_row_id', '=', $module_row->id)
-                ->where('status', '=', 'active')
-                ->fetchAll();
-
-            $vars['service_ids'] = [];
-            foreach ($services as $service) {
-                $vars['service_ids'][] = $service->id;
-            }
-
-            // Set view
-            $vars['renew_info_url'] = $this->base_uri . 'settings/company/modules/addrow/' . $module_row->module_id;
-            $this->view->set('vars', (object) $vars);
-
-            return $this->view->fetch();
         } elseif ($action == 'get_renew_info') {
             $service_id = isset($_GET['service_id']) ? $_GET['service_id'] : null;
             if (is_null($service_id)) {
@@ -846,29 +817,6 @@ class Namesilo extends RegistrarModule
      */
     public function addModuleRow(array &$vars)
     {
-        if (isset($vars['sync_services'])) {
-            Loader::loadModels($this, ['ModuleManager', 'Services', 'Clients', 'ClientGroups']);
-
-            $module_row = $this->getRow();
-
-            foreach ($vars['sync_services'] as $service_id) {
-                $api = $this->getApi(
-                    $module_row->meta->user,
-                    $module_row->meta->key,
-                    $module_row->meta->sandbox == 'true',
-                    null,
-                    true
-                );
-                $domains = new NamesiloDomains($api);
-
-                $info = $this->getRenewInfo($service_id, $domains);
-                $this->Services->edit($service_id, ['date_renews' => $info['date_after']], true);
-            }
-            $url = explode('?', $_SERVER['REQUEST_URI']);
-            header('Location:' . $url[0] . '?action=sync_renew_dates&msg=success');
-            exit();
-        }
-
         $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module'];
         $encrypted_fields = ['key'];
 

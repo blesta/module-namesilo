@@ -85,6 +85,14 @@ class Namesilo extends RegistrarModule
                         ->delete();
                 }
             }
+
+            // Upgrade to 2.1.0
+            if (version_compare($current_version, '2.1.0', '<')) {
+                Cache::clearCache(
+                    'tlds_prices',
+                    Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
+                );
+            }
         }
     }
 
@@ -2588,6 +2596,23 @@ class Namesilo extends RegistrarModule
      */
     public function getTldPricing($module_row_id = null)
     {
+        return $this->getFilteredTldPricing($module_row_id);
+    }
+
+    /**
+     * Get a filtered list of the TLD prices
+     *
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @param array $filters A list of criteria by which to filter fetched pricings including but not limited to:
+     *
+     *  - tlds A list of tlds for which to fetch pricings
+     *  - currencies A list of currencies for which to fetch pricings
+     *  - terms A list of terms for which to fetch pricings
+     * @return array A list of all TLDs and their pricing
+     *    [tld => [currency => [year# => ['register' => price, 'transfer' => price, 'renew' => price]]]]
+     */
+    public function getFilteredTldPricing($module_row_id = null, $filters = [])
+    {
         $this->setModuleRow($this->getModuleRow($module_row_id));
         $tld_prices = $this->getPrices();
         $tld_yearly_prices = [];
@@ -2596,6 +2621,11 @@ class Namesilo extends RegistrarModule
             foreach ($currency_prices as $currency => $prices) {
                 $tld_yearly_prices[$tld][$currency] = [];
                 foreach (range(1, 10) as $years) {
+                    // Filter by 'currencies'
+                    if (isset($filters['terms']) && !in_array($years, $filters['terms'])) {
+                        continue;
+                    }
+
                     $tld_yearly_prices[$tld][$currency][$years] = [
                         'register' => $prices->registration * $years,
                         'transfer' => $prices->transfer * $years,
@@ -2918,9 +2948,13 @@ class Namesilo extends RegistrarModule
     /**
      * Retrieves all the Namesilo prices
      *
+     * @param array $filters A list of criteria by which to filter fetched pricings including but not limited to:
+     *
+     *  - tlds A list of tlds for which to fetch pricings
+     *  - currencies A list of currencies for which to fetch pricings
      * @return array An array containing all the TLDs with their respective prices
      */
-    protected function getPrices()
+    protected function getPrices(array $filters = [])
     {
         // Fetch the TLDs results from the cache, if they exist
         $cache = Cache::fetchCache(
@@ -2929,21 +2963,37 @@ class Namesilo extends RegistrarModule
         );
 
         if ($cache) {
-            return unserialize(base64_decode($cache));
+            $result = unserialize(base64_decode($cache));
         }
 
         Loader::loadModels($this, ['Currencies']);
 
-        $row = $this->getRow();
+        if (!$result) {
+            $row = $this->getRow();
+            $api = $this->getApi(
+                $row->meta->user,
+                $row->meta->key,
+                $row->meta->sandbox == 'true'
+            );
+            $result = $api->submit('getPrices')->response();
 
-        $api = $this->getApi(
-            $row->meta->user,
-            $row->meta->key,
-            $row->meta->sandbox == 'true'
-        );
-        $result = $api->submit('getPrices')->response();
+            // Save the TLDs results to the cache
+            if (Configure::get('Caching.on') && is_writable(CACHEDIR)) {
+                try {
+                    Cache::writeCache(
+                        'tlds_prices',
+                        base64_encode(serialize($result)),
+                        strtotime(Configure::get('Blesta.cache_length')) - time(),
+                        Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
+                    );
+                } catch (Exception $e) {
+                    // Write to cache failed, so disable caching
+                    Configure::set('Caching.on', false);
+                }
+            }
+        }
+
         $tlds = [];
-
         if (isset($result->detail) && $result->detail == 'success') {
             $tlds = (array) $result;
             unset($tlds['code']);
@@ -2959,44 +3009,37 @@ class Namesilo extends RegistrarModule
         foreach ($tlds as $tld => $tld_pricing) {
             $tld = '.' . trim($tld, '.');
 
+            // Filter by 'tlds'
+            if (isset($filters['tlds']) && !in_array($tld, $filters['tlds'])) {
+                continue;
+            }
+
             foreach ($currencies as $currency) {
+                // Filter by 'currencies'
+                if (isset($filters['currencies']) && !in_array($currency->code, $filters['currencies'])) {
+                    continue;
+                }
+
                 $pricing[$tld][$currency->code] = (object) [
                     'registration' => $this->Currencies->convert(
-                        $tld_pricing->registration,
+                        is_scalar($tld_pricing->registration) ? $tld_pricing->registration : 0,
                         'USD',
                         $currency->code,
                         Configure::get('Blesta.company_id')
                     ),
                     'transfer' => $this->Currencies->convert(
-                        $tld_pricing->transfer,
+                        is_scalar($tld_pricing->transfer) ? $tld_pricing->transfer : 0,
                         'USD',
                         $currency->code,
                         Configure::get('Blesta.company_id')
                     ),
                     'renew' => $this->Currencies->convert(
-                        $tld_pricing->renew,
+                        is_scalar($tld_pricing->renew) ? $tld_pricing->renew : 0,
                         'USD',
                         $currency->code,
                         Configure::get('Blesta.company_id')
                     )
                 ];
-            }
-        }
-
-        // Save the TLDs results to the cache
-        if (count($pricing) > 0) {
-            if (Configure::get('Caching.on') && is_writable(CACHEDIR)) {
-                try {
-                    Cache::writeCache(
-                        'tlds_prices',
-                        base64_encode(serialize($pricing)),
-                        strtotime(Configure::get('Blesta.cache_length')) - time(),
-                        Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
-                    );
-                } catch (Exception $e) {
-                    // Write to cache failed, so disable caching
-                    Configure::set('Caching.on', false);
-                }
             }
         }
 

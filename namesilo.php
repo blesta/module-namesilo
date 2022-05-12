@@ -2621,7 +2621,7 @@ class Namesilo extends RegistrarModule
             foreach ($currency_prices as $currency => $prices) {
                 $tld_yearly_prices[$tld][$currency] = [];
                 foreach (range(1, 10) as $years) {
-                    // Filter by 'currencies'
+                    // Filter by 'terms'
                     if (isset($filters['terms']) && !in_array($years, $filters['terms'])) {
                         continue;
                     }
@@ -2978,7 +2978,10 @@ class Namesilo extends RegistrarModule
             $result = $api->submit('getPrices')->response();
 
             // Save the TLDs results to the cache
-            if (Configure::get('Caching.on') && is_writable(CACHEDIR)) {
+            if (
+                Configure::get('Caching.on') && is_writable(CACHEDIR)
+                && isset($result->detail) && $result->detail == 'success'
+            ) {
                 try {
                     Cache::writeCache(
                         'tlds_prices',

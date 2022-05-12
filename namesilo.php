@@ -2968,7 +2968,7 @@ class Namesilo extends RegistrarModule
 
         Loader::loadModels($this, ['Currencies']);
 
-        if (!$result) {
+        if (!isset($result)) {
             $row = $this->getRow();
             $api = $this->getApi(
                 $row->meta->user,

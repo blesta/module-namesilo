@@ -767,10 +767,8 @@ class Namesilo extends RegistrarModule
             exit(json_encode($vars));
         } else {
             // Set unspecified checkboxes
-            if (!empty($vars)) {
-                if (empty($vars['sandbox'])) {
-                    $vars['sandbox'] = 'false';
-                }
+            if (empty($vars['sandbox'])) {
+                $vars['sandbox'] = 'false';
             }
 
             // Set view
@@ -799,12 +797,7 @@ class Namesilo extends RegistrarModule
         Loader::loadHelpers($this, ['Form', 'Html', 'Widget']);
 
         if (empty($vars)) {
-            $vars = $module_row->meta;
-        } else {
-            // Set unspecified checkboxes
-            if (empty($vars['sandbox'])) {
-                $vars['sandbox'] = 'false';
-            }
+            $vars = (array) $module_row->meta;
         }
 
         $this->view->set('vars', (object) $vars);
@@ -870,13 +863,13 @@ class Namesilo extends RegistrarModule
         $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module'];
         $encrypted_fields = ['key'];
 
+        // Set unspecified checkboxes
+        if (empty($vars['sandbox'])) {
+            $vars['sandbox'] = 'false';
+        }
+
         // Merge package settings on to the module row meta
         $module_row_meta = array_merge((array) $module_row->meta, $vars);
-
-        // Set unspecified checkboxes
-        if (empty($meta['sandbox'])) {
-            $meta['sandbox'] = 'false';
-        }
 
         $this->Input->setRules($this->getRowRules($vars));
 
@@ -2661,16 +2654,16 @@ class Namesilo extends RegistrarModule
                     'negate' => true,
                     'message' => Language::_('Namesilo.!error.key.valid', true)
                 ],
-                'valid_connection' => [
+                /*'valid_connection' => [
                     'rule' => [
                         [$this, 'validateConnection'],
                         $vars['user'],
                         isset($vars['sandbox']) ? $vars['sandbox'] : 'false'
                     ],
                     'message' => Language::_('Namesilo.!error.key.valid_connection', true)
-                ]
+                ]*/
             ],
-            'portfolio' => [
+            /*'portfolio' => [
                 'valid' => [
                     'rule' => [
                         [$this, 'validatePortfolio'],
@@ -2680,7 +2673,7 @@ class Namesilo extends RegistrarModule
                     ],
                     'message' => Language::_('Namesilo.!error.portfolio.valid_portfolio', true)
                 ]
-            ],
+            ],*/
             'payment_id' => [
                 'valid' => [
                     'rule' => ['matches', '/^[\s\d]*$/'],

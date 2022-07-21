@@ -366,15 +366,23 @@ class Namesilo extends RegistrarModule
                         if (reset($this->Input->errors()['errors']) === $error) {
                             // unset the errors since we are working around it
                             $this->Input->setErrors([]);
+
                             // set the registration length to 1 year and save the remainder for an extension
                             $total_years = $fields['years'];
                             $fields['years'] = 1;
                             $response = $domains->create($fields);
                             $this->processResponse($api, $response);
+
                             // now extend the remainder of the years
                             $fields['years'] = $total_years - 1;
                             $response = $domains->renew($fields);
                             $this->processResponse($api, $response);
+
+                            // set privacy status
+                            if (((bool) $vars['private'] || isset($vars['configoptions']['id_protection'])) && $this->supportsIdProtection()) {
+                                $response = $domains->addPrivacy(['domain' => $fields['domain'] ?? $vars['domain']]);
+                                $this->processResponse($api, $response);
+                            }
                         }
 
                         if (isset($vars['contact_id'])) {

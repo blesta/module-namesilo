@@ -265,7 +265,7 @@ class Namesilo extends RegistrarModule
             (array) Configure::get('Namesilo.domain_fields' . $tld),
             (array) Configure::get('Namesilo.nameserver_fields'),
             (array) Configure::get('Namesilo.transfer_fields'),
-            ['years' => true, 'transfer' => isset($vars['transfer']) ? $vars['transfer'] : 1]
+            ['years' => true, 'transfer' => $vars['transfer'] ?? 1, 'private' => 0]
         );
 
         // Set the whois privacy field based on the config option
@@ -377,12 +377,6 @@ class Namesilo extends RegistrarModule
                             $fields['years'] = $total_years - 1;
                             $response = $domains->renew($fields);
                             $this->processResponse($api, $response);
-
-                            // set privacy status
-                            if (((bool) $vars['private'] || isset($vars['configoptions']['id_protection'])) && $this->supportsIdProtection()) {
-                                $response = $domains->addPrivacy(['domain' => $fields['domain'] ?? $vars['domain']]);
-                                $this->processResponse($api, $response);
-                            }
                         }
 
                         if (isset($vars['contact_id'])) {

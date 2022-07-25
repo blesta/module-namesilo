@@ -265,7 +265,7 @@ class Namesilo extends RegistrarModule
             (array) Configure::get('Namesilo.domain_fields' . $tld),
             (array) Configure::get('Namesilo.nameserver_fields'),
             (array) Configure::get('Namesilo.transfer_fields'),
-            ['years' => true, 'transfer' => isset($vars['transfer']) ? $vars['transfer'] : 1]
+            ['years' => true, 'transfer' => $vars['transfer'] ?? 1, 'private' => 0]
         );
 
         // Set the whois privacy field based on the config option
@@ -366,11 +366,13 @@ class Namesilo extends RegistrarModule
                         if (reset($this->Input->errors()['errors']) === $error) {
                             // unset the errors since we are working around it
                             $this->Input->setErrors([]);
+
                             // set the registration length to 1 year and save the remainder for an extension
                             $total_years = $fields['years'];
                             $fields['years'] = 1;
                             $response = $domains->create($fields);
                             $this->processResponse($api, $response);
+
                             // now extend the remainder of the years
                             $fields['years'] = $total_years - 1;
                             $response = $domains->renew($fields);

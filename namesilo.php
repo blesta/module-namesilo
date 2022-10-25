@@ -1715,6 +1715,12 @@ class Namesilo extends RegistrarModule
             if (!empty($post['notice'])) {
                 $communication->send($post);
             }
+            if (isset($post['action']) && $post['action'] == 'resendAdminEmail') {
+                $domain_transfer_info = new NamesiloDomainsTransfer($api);
+                $admin_email_vars['domain'] = $fields->domain;
+                $transfer_info_response = $domain_transfer_info->resendAdminEmail($admin_email_vars);
+                $this->processResponse($api, $transfer_info_response);
+            }
             if (isset($post['action']) && $post['action'] == 'sync_date') {
                 Loader::loadModels($this, ['Services']);
 

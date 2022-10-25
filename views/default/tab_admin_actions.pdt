@@ -14,6 +14,17 @@
                 <?php $this->Form->fieldHidden('action', 'sync_date'); ?>
                 <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Namesilo.tab_adminactions.sync_date'); ?></a></div>
             </li>
+            <?php
+            $this->Form->end();
+            $this->Form->create();
+            ?>
+            <li>
+                <?php $this->Form->fieldHidden('action', 'resendAdminEmail'); ?>
+                <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Namesilo.tab_adminactions.resendAdminEmail'); ?></a></div>
+            </li>
+            <?php
+            $this->Form->end();
+            ?>
         </ul>
 
     </div>

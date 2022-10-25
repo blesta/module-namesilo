@@ -65,6 +65,18 @@ class NamesiloDomainsTransfer
     }
 
     /**
+     * Request to re-send the administrative contact email verification
+     * to continue a domain transfer..
+     *
+     * @param array $vars An array of input params including:
+     *
+     *  - Domain name that is being transferred
+     * @return NamesiloResponses
+     */
+    public function resendAdminEmail(array $vars) {
+        return $this->api->submit('transferUpdateResendAdminEmail', $vars);
+    }
+    /**
      * Gets the status of a particular transfer.
      *
      * @param array $vars An array of input params including:

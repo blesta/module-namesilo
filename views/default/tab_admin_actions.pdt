@@ -18,6 +18,10 @@
             $this->Form->end();
             $this->Form->create();
             ?>
+            <li>
+                <?php $this->Form->fieldHidden('action', 'resendAdminEmail'); ?>
+                <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Namesilo.tab_adminactions.resendAdminEmail'); ?></a></div>
+            </li>
             <li class="pt-3">
                 <?php $this->Form->label('New EPP code', 'eppCode'); ?>
                 <?php $this->Form->fieldText('eppCode', '', ['id' => 'eppCode']); ?>

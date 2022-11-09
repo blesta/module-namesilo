@@ -137,10 +137,16 @@ $lang['Namesilo.tab_settings.not_verified'] = 'NOT VERIFIED';
 $lang['Namesilo.tab_settings.not_verified_warning'] = '<strong>WARNING:</strong> Your domain is at risk of being deactivated if you do not verify the registrant email address.';
 $lang['Namesilo.tab_settings.field_resend_verification_email'] = 'Resend Verification Email';
 
+$lang['Namesilo.tab_settings.field_update_registrar_lock'] = 'Update Registrar Lock';
+$lang['Namesilo.tab_settings.field_epp_code'] = 'EPP Code';
+$lang['Namesilo.tab_settings.field_resend_epp_code'] = 'Re-send EPP Code';
+
 $lang['Namesilo.tab_adminactions.title'] = 'Admin Actions';
 $lang['Namesilo.tab_adminactions.field_submit'] = 'Send Selected Notice';
 $lang['Namesilo.tab_adminactions.sync_date'] = 'Synchronize Renew Date';
 $lang['Namesilo.tab_adminactions.update.epp_code'] = 'Update EPP Code';
+
+$lang['Namesilo.tab_adminactions.resendAdminEmail'] = 'Resend Admin Email';
 
 $lang['Namesilo.manage.manual_renewal'] = 'Manually Renew (select years)';
 

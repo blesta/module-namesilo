@@ -144,6 +144,7 @@ $lang['Namesilo.tab_settings.field_resend_epp_code'] = 'Re-send EPP Code';
 $lang['Namesilo.tab_adminactions.title'] = 'Admin Actions';
 $lang['Namesilo.tab_adminactions.field_submit'] = 'Send Selected Notice';
 $lang['Namesilo.tab_adminactions.sync_date'] = 'Synchronize Renew Date';
+$lang['Namesilo.tab_adminactions.update.epp_code'] = 'Update EPP Code';
 
 $lang['Namesilo.tab_adminactions.resendAdminEmail'] = 'Resend Admin Email';
 

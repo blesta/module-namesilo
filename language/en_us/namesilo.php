@@ -140,6 +140,7 @@ $lang['Namesilo.tab_settings.field_resend_verification_email'] = 'Resend Verific
 $lang['Namesilo.tab_adminactions.title'] = 'Admin Actions';
 $lang['Namesilo.tab_adminactions.field_submit'] = 'Send Selected Notice';
 $lang['Namesilo.tab_adminactions.sync_date'] = 'Synchronize Renew Date';
+$lang['Namesilo.tab_adminactions.update.epp_code'] = 'Update EPP Code';
 
 $lang['Namesilo.manage.manual_renewal'] = 'Manually Renew (select years)';
 

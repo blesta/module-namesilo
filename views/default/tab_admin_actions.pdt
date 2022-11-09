@@ -14,6 +14,17 @@
                 <?php $this->Form->fieldHidden('action', 'sync_date'); ?>
                 <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Namesilo.tab_adminactions.sync_date'); ?></a></div>
             </li>
+            <?php
+            $this->Form->end();
+            $this->Form->create();
+            ?>
+            <li class="pt-3">
+                <?php $this->Form->label('New EPP code', 'eppCode'); ?>
+                <?php $this->Form->fieldText('eppCode', '', ['id' => 'eppCode']); ?>
+                <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Namesilo.tab_adminactions.update.epp_code'); ?></a></div>
+            </li>
+            <?php
+            $this->Form->end();
+            ?>
         </ul>
-
     </div>

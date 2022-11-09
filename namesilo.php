@@ -1715,6 +1715,14 @@ class Namesilo extends RegistrarModule
             if (!empty($post['notice'])) {
                 $communication->send($post);
             }
+            if (!empty($post['eppCode'])) {
+                $domains_transfer = new NamesiloDomainsTransfer($api);
+                $epp_vars['domain'] = $fields->domain;
+                $epp_vars['auth'] = $post['eppCode'];
+
+                $transfer_info = $domains_transfer->updateEpp($epp_vars);
+                $this->processResponse($api, $transfer_info);
+            }
             if (isset($post['action']) && $post['action'] == 'sync_date') {
                 Loader::loadModels($this, ['Services']);
 

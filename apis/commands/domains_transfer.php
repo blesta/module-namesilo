@@ -65,6 +65,20 @@ class NamesiloDomainsTransfer
     }
 
     /**
+     * Updates Epp code
+     *
+     * @param array $vars An array of input params including:
+     *
+     *  - auth The EPP Code
+     *  - domain The domain that is being transfered
+     * @return NamesiloResponse
+     */
+    public function updateEpp(array $vars)
+    {
+        return $this->api->submit('transferUpdateChangeEPPCode', $vars);
+    }
+
+    /**
      * Gets the status of a particular transfer.
      *
      * @param array $vars An array of input params including:

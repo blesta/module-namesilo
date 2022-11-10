@@ -65,6 +65,33 @@ class NamesiloDomainsTransfer
     }
 
     /**
+     * Request to re-send the administrative contact email verification
+     * to continue a domain transfer..
+     *
+     * @param array $vars An array of input params including:
+     *
+     *  - Domain name that is being transferred
+     * @return NamesiloResponses
+     */
+    public function resendAdminEmail(array $vars) {
+        return $this->api->submit('transferUpdateResendAdminEmail', $vars);
+    }
+
+    /**
+     * Updates Epp code
+     *
+     * @param array $vars An array of input params including:
+     *
+     *  - auth The EPP Code
+     *  - domain The domain that is being transfered
+     * @return NamesiloResponse
+     */
+    public function updateEpp(array $vars)
+    {
+        return $this->api->submit('transferUpdateChangeEPPCode', $vars);
+    }
+
+    /**
      * Gets the status of a particular transfer.
      *
      * @param array $vars An array of input params including:

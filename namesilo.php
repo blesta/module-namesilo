@@ -2490,16 +2490,18 @@ class Namesilo extends RegistrarModule
         $result = $domains->getDomainInfo(['domain' => $domain]);
         $this->processResponse($api, $result);
 
-        if (self::$codes[$result->status()][1] == 'fail') {
+        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
             return false;
         }
 
         $response = $result->response();
 
-        return $this->Date->format(
-            $format,
-            isset($response->expires) ? $response->expires : date('c')
-        );
+        return isset($response->expires)
+            ? $this->Date->format(
+                $format,
+                $response->expires
+            )
+            : false;
     }
 
     /**
@@ -2554,6 +2556,10 @@ class Namesilo extends RegistrarModule
             $row->meta->key,
             $row->meta->sandbox == 'true'
         )->submit('getPrices');
+
+        if (!$result->response()) {
+            return [];
+        }
 
         foreach ($result->response() as $tld => $v) {
             if (!is_object($v)) {
@@ -2776,7 +2782,7 @@ class Namesilo extends RegistrarModule
         }
 
         // Set errors, if any
-        if (self::$codes[$status][1] == 'fail') {
+        if ((self::$codes[$status][1] ?? 'fail') == 'fail') {
             $errors = $response->errors() ? $response->errors() : [];
             $this->Input->setErrors(['errors' => (array) $errors]);
         }
@@ -2793,7 +2799,12 @@ class Namesilo extends RegistrarModule
         $last_request = $api->lastRequest();
         $url = substr($last_request['url'], 0, strpos($last_request['url'], '?'));
         $this->log($url, serialize($last_request['args']), 'input', true);
-        $this->log($url, serialize($response->response()), 'output', self::$codes[$response->status()][1] == 'success');
+        $this->log(
+            $url,
+            serialize($response->response()),
+            'output',
+            (self::$codes[$response->status()][1] ?? 'fail') == 'success'
+        );
     }
 
     /**

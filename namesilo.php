@@ -1769,7 +1769,7 @@ class Namesilo extends RegistrarModule
         $fields = $this->serviceFieldsToObject($service->fields);
 
         $domainInfo = $domains->getDomainInfo(['domain' => $fields->domain]);
-        if (self::$codes[$domainInfo->status()][1] == 'fail') {
+        if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
             $this->processResponse($api, $domainInfo);
 
             return false;
@@ -1805,7 +1805,7 @@ class Namesilo extends RegistrarModule
         foreach ($contact_ids as $type => $id) {
             if (!isset($temp[$id])) {
                 $response = $domains->getContacts(['contact_id' => $id]);
-                if (self::$codes[$response->status()][1] != 'fail') {
+                if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                     $temp[$id] = $response->response()->contact;
                     $contacts[$type] = $temp[$id];
                 }
@@ -2444,7 +2444,7 @@ class Namesilo extends RegistrarModule
         $result = $domains->check(['domains' => $domain]);
         $this->processResponse($api, $result);
 
-        if (self::$codes[$result->status()][1] == 'fail') {
+        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
             return false;
         }
 

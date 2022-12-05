@@ -338,10 +338,18 @@ class Namesilo extends RegistrarModule
                     $fields['contact_id'] = $response->response()->contact_id;
                 }
 
+                // Validate if the provided term is valid
+                if (!$this->isValidTerm($tld, $fields['years'] ?? 1, !empty($vars['auth']))) {
+                    $this->Input->setErrors(
+                        ['term' => ['invalid' => Language::_('Namesilo.!error.invalid_term', true)]]
+                    );
+
+                    return;
+                }
+
                 // Handle transfer
                 if (isset($vars['auth']) && $vars['auth']) {
                     $transfer = new NamesiloDomainsTransfer($api);
-
                     $response = $transfer->create($fields);
                     $this->processResponse($api, $response);
 
@@ -1707,6 +1715,23 @@ class Namesilo extends RegistrarModule
             if (!empty($post['notice'])) {
                 $communication->send($post);
             }
+            
+            if (isset($post['action']) && $post['action'] == 'resendAdminEmail') {
+                $domain_transfer_info = new NamesiloDomainsTransfer($api);
+                $admin_email_vars['domain'] = $fields->domain;
+                $transfer_info_response = $domain_transfer_info->resendAdminEmail($admin_email_vars);
+                $this->processResponse($api, $transfer_info_response);
+            }
+            
+            if (!empty($post['eppCode'])) {
+                $domains_transfer = new NamesiloDomainsTransfer($api);
+                $epp_vars['domain'] = $fields->domain;
+                $epp_vars['auth'] = $post['eppCode'];
+
+                $transfer_info = $domains_transfer->updateEpp($epp_vars);
+                $this->processResponse($api, $transfer_info);
+            }
+            
             if (isset($post['action']) && $post['action'] == 'sync_date') {
                 Loader::loadModels($this, ['Services']);
 
@@ -2462,6 +2487,23 @@ class Namesilo extends RegistrarModule
                 ['availability' => ['premium' => Language::_('Namesilo.!error.permium_domain', true, $domain)]]
             );
 
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Verifies if a domain of the provided TLD can be registered or transfer by the provided term
+     *
+     * @param string $tld The TLD to verify
+     * @param int $term The term in which the domain name will be registered or transferred (in years)
+     * @param bool $transfer True if the domains is going to be transferred, false otherwise (optional)
+     * @return bool True if the term is valid for the current TLD
+     */
+    public function isValidTerm($tld, $term, $transfer = false)
+    {
+        if ($term > 10 || ($transfer && $term > 1)) {
             return false;
         }
 

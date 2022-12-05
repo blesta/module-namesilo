@@ -137,9 +137,17 @@ $lang['Namesilo.tab_settings.not_verified'] = 'NOT VERIFIED';
 $lang['Namesilo.tab_settings.not_verified_warning'] = '<strong>WARNING:</strong> Your domain is at risk of being deactivated if you do not verify the registrant email address.';
 $lang['Namesilo.tab_settings.field_resend_verification_email'] = 'Resend Verification Email';
 
+$lang['Namesilo.tab_settings.field_update_registrar_lock'] = 'Update Registrar Lock';
+$lang['Namesilo.tab_settings.field_epp_code'] = 'EPP Code';
+$lang['Namesilo.tab_settings.field_resend_epp_code'] = 'Re-send EPP Code';
+
 $lang['Namesilo.tab_adminactions.title'] = 'Admin Actions';
 $lang['Namesilo.tab_adminactions.field_submit'] = 'Send Selected Notice';
 $lang['Namesilo.tab_adminactions.sync_date'] = 'Synchronize Renew Date';
+$lang['Namesilo.tab_adminactions.epp_code'] = 'EPP Code';
+$lang['Namesilo.tab_adminactions.update.epp_code'] = 'Update EPP Code';
+
+$lang['Namesilo.tab_adminactions.resendAdminEmail'] = 'Resend Admin Email';
 
 $lang['Namesilo.manage.manual_renewal'] = 'Manually Renew (select years)';
 
@@ -151,6 +159,7 @@ $lang['Namesilo.!error.portfolio.valid_portfolio'] = 'The portfolio entered does
 $lang['Namesilo.!error.payment_id.valid_format'] = 'Payment ID must be either blank or numeric only.';
 $lang['Namesilo.!error.epp.empty'] = 'Domain transfers require an EPP code to be entered.';
 $lang['Namesilo.!error.premium_domain'] = '%1$s is a premium domain. Please contact us for more information.'; // %1$s is the premium domain;
+$lang['Namesilo.!error.invalid_term'] = 'Invalid number of years, or no years provided.';
 
 // Notices
 $lang['Namesilo.notice.StatusPending'] = 'This order is pending. The feature you are trying to access will become available once the order has been activated successfully.';

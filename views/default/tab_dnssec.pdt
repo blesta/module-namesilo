@@ -12,16 +12,16 @@
         </div>
         <table class="table">
             <thead>
-            <tr class="heading_row">
-                <td><span><?php $this->_('Namesilo.dnssec.key_tag'); ?></span></td>
-                <td><span><?php $this->_('Namesilo.dnssec.algorithm'); ?></span></td>
-                <td><span><?php $this->_('Namesilo.dnssec.digest_type'); ?></span></td>
-                <td><span><?php echo $this->_('Namesilo.dnssec.digest'); ?></span></td>
-                <td><span><?php $this->_('Namesilo.tab_dnssec.field_delete'); ?></span></td>
-            </tr>
+                <tr class="heading_row">
+                    <td><span><?php $this->_('Namesilo.dnssec.key_tag'); ?></span></td>
+                    <td><span><?php $this->_('Namesilo.dnssec.algorithm'); ?></span></td>
+                    <td><span><?php $this->_('Namesilo.dnssec.digest_type'); ?></span></td>
+                    <td><span><?php echo $this->_('Namesilo.dnssec.digest'); ?></span></td>
+                    <td><span><?php $this->_('Namesilo.tab_dnssec.field_delete'); ?></span></td>
+                </tr>
             </thead>
             <?php
-            if (count($vars->records) > 0 && $vars->records[0]) {
+            if (!empty($vars->records) && count($vars->records) > 0 && $vars->records[0]) {
                 foreach ($vars->records as $record) {
                     ?>
                     <!-- List existing ds records -->
@@ -85,16 +85,16 @@
             </tbody>
         </table>
         <div class="button_row">
-                <?php
-                $button_attributes = [
-                    'class' => 'btn btn-primary float-right',
-                    'value' => 'addDnssec',
-                    'type' => 'submit',
-                ];
+            <?php
+            $button_attributes = [
+                'class' => 'btn btn-primary float-right',
+                'value' => 'addDnssec',
+                'type' => 'submit',
+            ];
 
-                $this->Form->fieldButton('action', $this->_('Namesilo.tab_dnssec.field_add', true), $button_attributes);
-                ?>
-            </div>
+            $this->Form->fieldButton('action', $this->_('Namesilo.tab_dnssec.field_add', true), $button_attributes);
+            ?>
+        </div>
         <?php
         $this->Form->end();
         ?>

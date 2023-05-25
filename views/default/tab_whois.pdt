@@ -1,5 +1,5 @@
 
-    <?php
+<?php
     $this->Form->create();
     ?>
 
@@ -13,6 +13,12 @@
         <div class="pad">
             <ul>
                 <?php
+                if ($key != 'registrant') {
+                    ?>
+                    <label for="match-registrant-<?php echo $key ?>">Match Registrant</label>
+                    <input type="checkbox" id="match-registrant-<?php echo $key ?>" value="<?php echo $key; ?>" onClick="matchInfo(this)"/>
+                <?php
+                }
                 foreach ($fields as $field) {
                     if (substr($field->params['for'], 0, strlen($key)) != $key) {
                         continue;
@@ -74,3 +80,40 @@
     <?php
     $this->Form->end();
     ?>
+
+    <script>
+        function copyAndDisable(that, ele) {
+            if ($(ele).prop('checked')) {
+                const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
+                const main_val = $("input[name='registrant[" + line_name + "]']").val()
+
+                $(that).val(main_val)
+                $(that).prop('disabled', true)
+            } else {
+                $(that).prop('disabled', false)
+            }
+        }
+
+        function matchInfo(ele) {
+            const value = $(ele).val()
+            // const registrant = $( "input[name^='registrant']" )
+
+            switch(value) {
+                case 'admin':
+                    $( "input[name^='administrative']" ).each(function() {
+                        copyAndDisable(this, ele)
+                    })
+                    break;
+                case 'tech':
+                    $( "input[name^='technical']" ).each(function() {
+                        copyAndDisable(this, ele)
+                    })
+                    break;
+                case 'billing':
+                    $( "input[name^='billing']" ).each(function() {
+                        copyAndDisable(this, ele)
+                    })
+                    break;
+            }
+        }
+    </script>

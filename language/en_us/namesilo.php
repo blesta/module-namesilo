@@ -66,6 +66,7 @@ $lang['Namesilo.tab_whois.section_admin'] = 'Administrative';
 $lang['Namesilo.tab_whois.section_tech'] = 'Technical';
 $lang['Namesilo.tab_whois.section_billing'] = 'Billing';
 $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
+$lang['Namesilo.tab_whois.match_registrant'] = 'Match Registrant';
 
 $lang['Namesilo.tab_email_forwarding.title'] = 'Email Forwarding';
 $lang['Namesilo.tab_email_forwarding.desc'] = 'Email forwarding is automatically directing email sent from one address to a different email address. For example, if you had an existing email address of email@email.com, and then registered the domain newdomain.com, you could use email forward to direct sales@newdomain.com to your existing email@email.com email address.';

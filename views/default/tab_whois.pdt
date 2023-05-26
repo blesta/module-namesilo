@@ -13,11 +13,10 @@
         <div class="pad">
             <ul>
                 <?php
+                // skip first group
                 if ($key != 'registrant') {
-                    ?>
-                    <label for="match-registrant-<?php echo $key ?>">Match Registrant</label>
-                    <input type="checkbox" id="match-registrant-<?php echo $key ?>" value="<?php echo $key; ?>" onClick="matchInfo(this)"/>
-                <?php
+                    $this->Form->label($this->_('Namesilo.tab_whois.match_registrant', true), "match-registrant-$key");
+                    $this->Form->fieldCheckbox("match-registrant-$key", $key, null, ['id' => "match-registrant-$key", "onClick" => "matchInfo(this)"]);
                 }
                 foreach ($fields as $field) {
                     if (substr($field->params['for'], 0, strlen($key)) != $key) {
@@ -82,38 +81,42 @@
     ?>
 
     <script>
-        function copyAndDisable(that, ele) {
-            if ($(ele).prop('checked')) {
-                const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
-                const main_val = $("input[name='registrant[" + line_name + "]']").val()
+        $(document).ready(function() {
+            // remove checkbox before submitting
+            $("form").submit(function(){
+                $(this).find('input[name^="match-registrant-"]').remove()
+                return true;
+            });
+        })
 
-                $(that).val(main_val)
-                $(that).prop('disabled', true)
-            } else {
-                $(that).prop('disabled', false)
-            }
+        function copyInfo(that, ele) {
+            const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
+            const main_val = $("input[name='registrant[" + line_name + "]']").val()
+
+            $(that).val(main_val)
         }
 
         function matchInfo(ele) {
             const value = $(ele).val()
-            // const registrant = $( "input[name^='registrant']" )
 
-            switch(value) {
-                case 'admin':
-                    $( "input[name^='administrative']" ).each(function() {
-                        copyAndDisable(this, ele)
-                    })
-                    break;
-                case 'tech':
-                    $( "input[name^='technical']" ).each(function() {
-                        copyAndDisable(this, ele)
-                    })
-                    break;
-                case 'billing':
-                    $( "input[name^='billing']" ).each(function() {
-                        copyAndDisable(this, ele)
-                    })
-                    break;
+            if ($(ele).prop('checked')) {
+                switch(value) {
+                    case 'admin':
+                        $( "input[name^='administrative']" ).each(function() {
+                            copyInfo(this, ele)
+                        })
+                        break;
+                    case 'tech':
+                        $( "input[name^='technical']" ).each(function() {
+                            copyInfo(this, ele)
+                        })
+                        break;
+                    case 'billing':
+                        $( "input[name^='billing']" ).each(function() {
+                            copyInfo(this, ele)
+                        })
+                        break;
+                }
             }
         }
     </script>

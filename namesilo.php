@@ -1808,6 +1808,11 @@ class Namesilo extends RegistrarModule
             $params = ['domain' => $fields->domain];
 
             foreach ($post as $key => $value) {
+                // Format phone number
+                if ($value['ph']) {
+                    $value['ph'] = $this->formatPhone($value['ph'], $value['ct']);
+                }
+
                 $response = $domains->addContacts($value);
                 $this->processResponse($api, $response);
                 if (self::$codes[$response->status()][1] == 'success') {
@@ -1845,6 +1850,7 @@ class Namesilo extends RegistrarModule
                     if (!is_scalar($value)) {
                         $value = '';
                     }
+
                     if (isset($whois_fields[$name]['rp'])) {
                         $vars->{$section . '[' . $whois_fields[$name]['rp'] . ']'} = $value;
                     }
@@ -2891,7 +2897,21 @@ class Namesilo extends RegistrarModule
             Loader::loadModels($this, ['Contacts']);
         }
 
-        return $this->Contacts->intlNumber($number, $country, '.');
+        $separator = '.';
+        if (in_array(strtoupper($country), ['US', 'CA'])) {
+            $separator = '';
+        }
+
+        $formatted_phone = $this->Contacts->intlNumber($number, $country, $separator);
+        if (in_array($country, ['US', 'CA'])) {
+            $formatted_phone = substr($formatted_phone, -10);
+
+            if (strlen($formatted_phone) !== 10) {
+                $formatted_phone = '1111111111';
+            }
+        }
+
+        return $formatted_phone;
     }
 
     /**

@@ -2897,12 +2897,8 @@ class Namesilo extends RegistrarModule
             Loader::loadModels($this, ['Contacts']);
         }
 
-        $separator = '.';
-        if (in_array(strtoupper($country), ['US', 'CA'])) {
-            $separator = '';
-        }
+        $formatted_phone = preg_replace('/[^0-9]+/', '', $number ?? '');
 
-        $formatted_phone = $this->Contacts->intlNumber($number, $country, $separator);
         if (in_array($country, ['US', 'CA'])) {
             $formatted_phone = substr($formatted_phone, -10);
 

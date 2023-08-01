@@ -2899,14 +2899,10 @@ class Namesilo extends RegistrarModule
 
         $phone = $this->Contacts->intlNumber($number, $country, '.');
         $phone_parts = explode('.', $phone, 2);
-        $formatted_phone = preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? '1111111111');
+        $formatted_phone = preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone);
 
         if (in_array($country, ['US', 'CA'])) {
             $formatted_phone = substr($formatted_phone, -10);
-
-            if (strlen($formatted_phone) !== 10) {
-                $formatted_phone = '1111111111';
-            }
         }
 
         return $formatted_phone;

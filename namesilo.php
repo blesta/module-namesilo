@@ -1715,14 +1715,14 @@ class Namesilo extends RegistrarModule
             if (!empty($post['notice'])) {
                 $communication->send($post);
             }
-            
+
             if (isset($post['action']) && $post['action'] == 'resendAdminEmail') {
                 $domain_transfer_info = new NamesiloDomainsTransfer($api);
                 $admin_email_vars['domain'] = $fields->domain;
                 $transfer_info_response = $domain_transfer_info->resendAdminEmail($admin_email_vars);
                 $this->processResponse($api, $transfer_info_response);
             }
-            
+
             if (!empty($post['eppCode'])) {
                 $domains_transfer = new NamesiloDomainsTransfer($api);
                 $epp_vars['domain'] = $fields->domain;
@@ -1731,7 +1731,7 @@ class Namesilo extends RegistrarModule
                 $transfer_info = $domains_transfer->updateEpp($epp_vars);
                 $this->processResponse($api, $transfer_info);
             }
-            
+
             if (isset($post['action']) && $post['action'] == 'sync_date') {
                 Loader::loadModels($this, ['Services']);
 
@@ -1808,6 +1808,11 @@ class Namesilo extends RegistrarModule
             $params = ['domain' => $fields->domain];
 
             foreach ($post as $key => $value) {
+                // Format phone number
+                if ($value['ph']) {
+                    $value['ph'] = $this->formatPhone($value['ph'], $value['ct']);
+                }
+
                 $response = $domains->addContacts($value);
                 $this->processResponse($api, $response);
                 if (self::$codes[$response->status()][1] == 'success') {
@@ -1845,6 +1850,7 @@ class Namesilo extends RegistrarModule
                     if (!is_scalar($value)) {
                         $value = '';
                     }
+
                     if (isset($whois_fields[$name]['rp'])) {
                         $vars->{$section . '[' . $whois_fields[$name]['rp'] . ']'} = $value;
                     }
@@ -2891,7 +2897,15 @@ class Namesilo extends RegistrarModule
             Loader::loadModels($this, ['Contacts']);
         }
 
-        return $this->Contacts->intlNumber($number, $country, '.');
+        $phone = $this->Contacts->intlNumber($number, $country, '.');
+        $phone_parts = explode('.', $phone, 2);
+        $formatted_phone = preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone);
+
+        if (in_array($country, ['US', 'CA'])) {
+            $formatted_phone = substr($formatted_phone, -10);
+        }
+
+        return $formatted_phone;
     }
 
     /**

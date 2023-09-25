@@ -13,11 +13,6 @@
 class Namesilo extends RegistrarModule
 {
     /**
-     * @var string Debug email address
-     */
-    private static $debug_to = 'root@localhost';
-
-    /**
      * @var array Namesilo response codes
      */
     private static $codes;
@@ -3145,26 +3140,7 @@ class Namesilo extends RegistrarModule
     {
         $module_rows = $this->getRows();
 
-        return isset($module_rows[0]) ? $module_rows[0] : null;
-    }
-
-    /**
-     * Retrieves all the Namesilo module row options
-     *
-     * @return array An array containing all the module row options
-     */
-    private function getRowsOptions()
-    {
-        $rows_options = [];
-        $module_rows = $this->getRows();
-
-        foreach ($module_rows as $module_row) {
-            if (isset($module_row->meta->namesilo_module)) {
-                $rows_options[$module_row->id] = $module_row->meta->user;
-            }
-        }
-
-        return $rows_options;
+        return $module_rows[0] ?? null;
     }
 
     /**
@@ -3177,32 +3153,5 @@ class Namesilo extends RegistrarModule
         rsort($array);
 
         return isset($array[0]) && is_array($array[0]);
-    }
-
-    /**
-     * Prints the given data as a JSON string
-     *
-     * @param mixed $data The array or object to be printed
-     */
-    public function printJson($data = [])
-    {
-        header('Content-type: application/json');
-        echo json_encode($data);
-        exit;
-    }
-
-    /**
-     * Sends an email to the debug address with the given data
-     *
-     * @param mixed $data The data to send
-     */
-    public function debug($data)
-    {
-        mail(
-            self::$debug_to,
-            'Namesilo Module Debug',
-            var_export($data, true),
-            "From: blesta@localhost\n\n"
-        );
     }
 }

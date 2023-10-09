@@ -1052,6 +1052,20 @@ class Namesilo extends RegistrarModule
 
                 $fields = Configure::get('Namesilo.transfer_fields');
 
+                foreach ($package->meta->tlds as $tld) {
+                    if ($tld == '.ca') {
+                        $fields = array_merge(
+                            $fields,
+                            (array) Configure::get('Namesilo.domain_fields' . $tld)
+                        );
+        
+                        // .ca domains can't have traditional whois privacy
+                        if ($tld == '.ca') {
+                            unset($fields['private']);
+                        }
+                    }
+                }
+
                 $fields['transfer'] = [
                     'label' => Language::_('Namesilo.domain.DomainAction', true),
                     'type' => 'radio',

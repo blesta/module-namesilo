@@ -97,17 +97,17 @@
             const value = $(this).attr('name');
             switch(value) {
                 case 'admin':
-                    $( "input[name^='administrative']" ).each(function() {
+                    $( "input[name^='administrative']:not([type='submit'])" ).each(function() {
                         copyInfo(this);
                     });
                     break;
                 case 'tech':
-                    $( "input[name^='technical']" ).each(function() {
+                    $( "input[name^='technical']:not([type='submit'])" ).each(function() {
                         copyInfo(this);
                     });
                     break;
                 case 'billing':
-                    $( "input[name^='billing']" ).each(function() {
+                    $( "input[name^='billing']:not([type='submit'])" ).each(function() {
                         copyInfo(this);
                     });
                     break;

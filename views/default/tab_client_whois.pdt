@@ -22,6 +22,13 @@
                     ?>
                     <div class="tab-pane fade<?php echo $index == 0 ? ' show active' : ''; ?>" id="<?php echo (isset($key) ? $this->Html->safe($key) : null); ?>">
                         <?php
+                        // skip first group
+                        if ($key != 'registrant') {
+                            $this->Form->fieldSubmit($key, $this->_('Namesilo.tab_whois.copy_registrant_info', true), ['class' => "match-registrant btn btn-secondary mb-2"]);
+                        ?>
+                        <?php
+                        }
+                        
                         foreach ($fields ?? [] as $field) {
                             if (substr($field->params['for'], 0, strlen($key)) != $key) {
                                 continue;
@@ -102,3 +109,39 @@
     <?php
     $this->Form->end();
     ?>
+
+    <script>
+        $(document).ready(function () {
+            $('.match-registrant').click(copyRegistrantInfo);
+        });
+        
+        function copyInfo(that) {
+            console.log($(that).attr('name'));
+            const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
+            const main_val = $("input[name='registrant[" + line_name + "]']").val();
+
+            $(that).val(main_val);
+        }
+
+        function copyRegistrantInfo(e) {
+            e.preventDefault();
+            const value = $(this).attr('name');
+            switch(value) {
+                case 'admin':
+                    $( "input[name^='administrative']:not([type='submit'])" ).each(function() {
+                        copyInfo(this);
+                    });
+                    break;
+                case 'tech':
+                    $( "input[name^='technical']:not([type='submit'])" ).each(function() {
+                        copyInfo(this);
+                    });
+                    break;
+                case 'billing':
+                    $( "input[name^='billing']:not([type='submit'])" ).each(function() {
+                        copyInfo(this);
+                    });
+                    break;
+            }
+        }
+    </script>

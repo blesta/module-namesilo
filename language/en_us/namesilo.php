@@ -113,6 +113,7 @@ $lang['Namesilo.tab_dnsrecord.help_text_1'] = 'On this page you can add or delet
 $lang['Namesilo.dnsrecord.record_type'] = 'Type';
 $lang['Namesilo.dnsrecord.host'] = 'Host';
 $lang['Namesilo.dnsrecord.value'] = 'Value';
+$lang['Namesilo.dnsrecord.distance'] = 'Priority';
 $lang['Namesilo.dnsrecord.ttl'] = 'TTL';
 $lang['Namesilo.dnsrecord.field_delete'] = 'Delete Record(s)';
 

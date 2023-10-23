@@ -9,6 +9,7 @@
                         <th><span><?php $this->_('Namesilo.dnsrecord.record_type');?></span></th>
                         <th><span><?php $this->_('Namesilo.dnsrecord.host');?></span></th>
                         <th><span><?php $this->_('Namesilo.dnsrecord.value');?></span></th>
+                        <th><span><?php $this->_('Namesilo.dnsrecord.distance');?></span></th>
                         <th><span><?php $this->_('Namesilo.dnsrecord.ttl');?></span></th>
                         <th><span><?php $this->_('Namesilo.dnsrecord.field_delete');?></span></th>
                     </tr>
@@ -23,6 +24,7 @@
                                 <td><?php echo (isset($record['type']) ? $record['type'] : null);?></td>
                                 <td><?php echo (isset($record['host']) ? $record['host'] : null);?></td>
                                 <td><?php echo (isset($record['value']) ? $record['value'] : null);?></td>
+                                <td><?php echo (isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] : null);?></td>
                                 <td><?php echo (isset($record['ttl']) ? $record['ttl'] : null);?></td>
                                 <td>
                                     <?php
@@ -65,8 +67,10 @@
             <label><?php $this->_('Namesilo.dnsrecord.record_type');?><?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options'], null, ['class' => 'form-control']);?></label>
             <label><?php $this->_('Namesilo.dnsrecord.host');?><?php $this->Form->fieldText('host', null, ['class' => 'form-control']);?></label>
             <label><?php $this->_('Namesilo.dnsrecord.value');?><?php $this->Form->fieldText('value', null, ['class' => 'form-control']);?></label>
+            <label id="distance" style="display:none;"><?php $this->_('Namesilo.dnsrecord.distance');?><?php $this->Form->fieldText('distance', 10, ['class' => 'form-control']);?></label>
             <label><?php $this->_('Namesilo.dnsrecord.ttl');?><?php $this->Form->fieldText('ttl', 7207, ['class' => 'form-control']);?></label>
         </div>
+
         <button class="btn btn-light float-right" type="submit" name="action" value="addDnsRecord">
             <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_add'); ?>
         </button>
@@ -74,3 +78,15 @@
         $this->Form->end();
         ?>
     </div>
+
+    <script>
+        $(document).ready(function() {
+            $('[name="record_type"]').on('change', function() {
+                if($(this).val() == 'MX') {
+                    $('#distance').show()
+                } else {
+                    $('#distance').hide()
+                }
+            })
+        })
+    </script>

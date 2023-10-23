@@ -2305,28 +2305,25 @@ class Namesilo extends RegistrarModule
 
         if (!empty($post)) {
             if (isset($post['action'])) {
+                $dns_fields = [
+                    'domain' => $fields->domain,
+                    'rrtype' => $post['record_type'],
+                    'rrhost' => $post['host'],
+                    'rrvalue' => $post['value'],
+                    'rrttl' => $post['ttl'],
+                ];
+                if (isset($post['record_id']) && !empty($post['record_id'])) {
+                    $dns_fields['rrid'] = $post['record_id'];
+                }
+                if (isset($post['distance']) && !empty($post['distance']) && $post['record_type'] == 'MX') {
+                    $dns_fields['rrdistance'] = $post['distance'];
+                }
+
                 if ($post['action'] == 'addDnsRecord') {
-                    $response = $dns->dnsAddRecord(
-                        [
-                            'domain' => $fields->domain,
-                            'rrtype' => $post['record_type'],
-                            'rrhost' => $post['host'],
-                            'rrvalue' => $post['value'],
-                            'rrttl' => $post['ttl'],
-                        ]
-                    );
+                    $response = $dns->dnsAddRecord($dns_fields);
                     $this->processResponse($api, $response);
                 } elseif ($post['action'] == 'updateDnsRecord') {
-                    $response = $dns->dnsUpdateRecord(
-                        [
-                            'domain' => $fields->domain,
-                            'rrid' => $post['record_id'],
-                            'rrtype' => $post['record_type'],
-                            'rrhost' => $post['host'],
-                            'rrvalue' => $post['value'],
-                            'rrttl' => $post['ttl'],
-                        ]
-                    );
+                    $response = $dns->dnsUpdateRecord($dns_fields);
                     $this->processResponse($api, $response);
                 } elseif ($post['action'] == 'deleteDnsRecord') {
                     $response = $dns->dnsDeleteRecord(

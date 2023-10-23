@@ -67,7 +67,7 @@
             <label><?php $this->_('Namesilo.dnsrecord.value');?><?php $this->Form->fieldText('value', null, ['class' => 'form-control']);?></label>
             <label><?php $this->_('Namesilo.dnsrecord.ttl');?><?php $this->Form->fieldText('ttl', 7207, ['class' => 'form-control']);?></label>
         </div>
-        <button class="btn btn-light float-right" type="submit">
+        <button class="btn btn-light float-right" type="submit" name="action" value="addDnsRecord">
             <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_add'); ?>
         </button>
         <?php

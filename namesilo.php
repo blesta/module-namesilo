@@ -2305,24 +2305,12 @@ class Namesilo extends RegistrarModule
 
         if (!empty($post)) {
             if (isset($post['action'])) {
-                $dns_fields = [
-                    'domain' => $fields->domain,
-                    'rrtype' => $post['record_type'],
-                    'rrhost' => $post['host'],
-                    'rrvalue' => $post['value'],
-                    'rrttl' => $post['ttl'],
-                ];
-                if (isset($post['record_id']) && !empty($post['record_id'])) {
-                    $dns_fields['rrid'] = $post['record_id'];
-                }
-                if (isset($post['distance']) && !empty($post['distance']) && $post['record_type'] == 'MX') {
-                    $dns_fields['rrdistance'] = $post['distance'];
-                }
-
                 if ($post['action'] == 'addDnsRecord') {
+                    $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsAddRecord($dns_fields);
                     $this->processResponse($api, $response);
                 } elseif ($post['action'] == 'updateDnsRecord') {
+                    $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsUpdateRecord($dns_fields);
                     $this->processResponse($api, $response);
                 } elseif ($post['action'] == 'deleteDnsRecord') {
@@ -2361,6 +2349,24 @@ class Namesilo extends RegistrarModule
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
+    }
+
+    private function getDnsFields($post, $fields) {
+        $dns_fields = [
+            'domain' => $fields->domain,
+            'rrtype' => $post['record_type'],
+            'rrhost' => $post['host'],
+            'rrvalue' => $post['value'],
+            'rrttl' => $post['ttl'],
+        ];
+        if (isset($post['record_id']) && !empty($post['record_id'])) {
+            $dns_fields['rrid'] = $post['record_id'];
+        }
+        if (isset($post['distance']) && !empty($post['distance']) && $post['record_type'] == 'MX') {
+            $dns_fields['rrdistance'] = $post['distance'];
+        }
+
+        return $dns_fields;
     }
 
     /**

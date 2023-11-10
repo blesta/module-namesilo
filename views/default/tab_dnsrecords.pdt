@@ -9,6 +9,7 @@
                     <td><span><?php $this->_('Namesilo.dnsrecord.record_type');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.host');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.value');?></span></td>
+                    <td><span><?php $this->_('Namesilo.dnsrecord.distance');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.ttl');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.field_delete');?></span></td>
                 </tr>
@@ -23,6 +24,7 @@
                         <td><?php echo (isset($record['type']) ? $record['type'] : null);?></td>
                         <td><?php echo (isset($record['host']) ? $record['host'] : null);?></td>
                         <td><?php echo (isset($record['value']) ? $record['value'] : null);?></td>
+                        <td><?php echo (isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] : null);?></td>
                         <td><?php echo (isset($record['ttl']) ? $record['ttl'] : null);?></td>
                         <td>
                             <?php
@@ -72,6 +74,7 @@
                     <td><span><?php $this->_('Namesilo.dnsrecord.record_type');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.host');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.value');?></span></td>
+                    <td class="distance" style="display:none;"><span><?php $this->_('Namesilo.dnsrecord.distance');?></span></td>
                     <td><span><?php $this->_('Namesilo.dnsrecord.ttl');?></span></td>
                     <td></td>
                 </tr>
@@ -81,6 +84,7 @@
                     <td><?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options']);?></td>
                     <td><?php $this->Form->fieldText('host');?></td>
                     <td><?php $this->Form->fieldText('value');?></td>
+                    <td class="distance" style="display:none;"><?php $this->Form->fieldText('distance', 10);?></td>
                     <td><?php $this->Form->fieldText('ttl', 7207);?></td>
                     <td>
                         <?php
@@ -105,3 +109,15 @@
         $this->Form->end();
         ?>
     </div>
+
+    <script>
+        $(document).ready(function() {
+            $('[name="record_type"]').on('change', function() {
+                if($(this).val() == 'MX') {
+                    $('.distance').show()
+                } else {
+                    $('.distance').hide()
+                }
+            })
+        })
+    </script>

@@ -64,7 +64,7 @@
                 <label><?php $this->_('Namesilo.dnssec.digest'); ?><?php $this->Form->fieldText('digest', null, ['class' => 'form-control']); ?></label>
             </div>
 
-            <button class="btn btn-light float-right" type="submit">
+            <button class="btn btn-light float-right" type="submit" name="action" value="addDnssec">
                 <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_dnssec.field_add'); ?>
             </button>
         <?php

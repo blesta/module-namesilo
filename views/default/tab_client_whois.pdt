@@ -116,7 +116,6 @@
         });
         
         function copyInfo(that) {
-            console.log($(that).attr('name'));
             const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
             const main_val = $("input[name='registrant[" + line_name + "]']").val();
 

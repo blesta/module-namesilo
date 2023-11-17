@@ -92,6 +92,71 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Gets a list of name server data associated with a domain
+     *
+     * @param string $domain The domain to lookup
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return array A list of name servers, each with the following fields:
+     *
+     *  - url The URL of the name server
+     *  - ips A list of IPs for the name server
+     */
+    public function getDomainNameServers($domain, $module_row_id = null)
+    {
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $dns = new NamesiloDomainsDns($api);
+
+        $response = $dns->getList(['domain' => $domain]);
+        $this->processResponse($api, $response);
+        $result = $response->response();
+
+        $nameservers = [];
+        if (isset($result->nameservers)) {
+            foreach ($result->nameservers->nameserver as $ns) {
+                $nameservers[] = [
+                    'url' => trim($ns),
+                    'ips' => [gethostbyname(trim($ns))]
+                ];
+            }
+        }
+
+        return $nameservers;
+    }
+
+    /**
+     * Assign new name servers to a domain
+     *
+     * @param string $domain The domain for which to assign new name servers
+     * @param int|null $module_row_id The ID of the module row to fetch for the current module
+     * @param array $vars A list of name servers to assign (e.g. [ns1, ns2])
+     * @return bool True if the name servers were successfully updated, false otherwise
+     */
+    public function setDomainNameservers($domain, $module_row_id = null, array $vars = [])
+    {
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $dns = new NamesiloDomainsDns($api);
+
+        $tld = $this->getTld($domain, $row);
+        $sld = substr($domain, 0, -strlen($tld));
+
+        $args = [];
+        $i = 1;
+        foreach ($vars as $ns) {
+            $args['ns' . $i] = $ns;
+            $i++;
+        }
+
+        $args['domain'] = $domain;
+
+        $response = $dns->setCustom($args);
+        $this->processResponse($api, $response);
+        
+        return self::$codes[$response->status()][1] == 'success';
+    }
+
+    /**
      * Attempts to validate service info. This is the top-level error checking method. Sets Input errors on failure.
      *
      * @param stdClass $package A stdClass object representing the selected package

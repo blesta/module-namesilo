@@ -138,9 +138,6 @@ class Namesilo extends RegistrarModule
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $dns = new NamesiloDomainsDns($api);
 
-        $tld = $this->getTld($domain, $row);
-        $sld = substr($domain, 0, -strlen($tld));
-
         $args = [];
         $i = 1;
         foreach ($vars as $ns) {

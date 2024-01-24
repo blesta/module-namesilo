@@ -2591,6 +2591,42 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Gets the domain registration date
+     *
+     * @param stdClass $service The service belonging to the domain to lookup
+     * @param string $format The format to return the registration date in
+     * @return string The domain registration date in UTC time in the given format
+     * @see Services::get()
+     */
+    public function getRegistrationDate($service, $format = 'Y-m-d H:i:s')
+    {
+        Loader::loadHelpers($this, ['Date']);
+
+        $domain = $this->getServiceDomain($service);
+        $module_row_id = $service->module_row_id ?? null;
+
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+
+        $domains = new NamesiloDomains($api);
+        $result = $domains->getDomainInfo(['domain' => $domain]);
+        $this->processResponse($api, $result);
+
+        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
+            return false;
+        }
+
+        $response = $result->response();
+
+        return isset($response->created)
+            ? $this->Date->format(
+                $format,
+                $response->created
+            )
+            : false;
+    }
+
+    /**
      * Gets the domain expiration date
      *
      * @param stdClass $service The service belonging to the domain to lookup

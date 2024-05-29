@@ -23,7 +23,7 @@ class NamesiloApi
     // Load traits
     use Container;
 
-    const SANDBOX_URL = 'https://sandbox.namesilo.com/api';
+    const SANDBOX_URL = 'https://ote.namesilo.com/api';
     const LIVE_URL = 'https://www.namesilo.com/api';
 
     /**

@@ -488,7 +488,7 @@ class Namesilo extends RegistrarModule
      */
     public function editService($package, $service, array $vars = [], $parent_package = null, $parent_service = null)
     {
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $domains = new NamesiloDomains($api);
 
@@ -518,7 +518,7 @@ class Namesilo extends RegistrarModule
      */
     public function cancelService($package, $service, $parent_package = null, $parent_service = null)
     {
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
 
         if ($package->meta->type == 'domain') {
@@ -542,7 +542,7 @@ class Namesilo extends RegistrarModule
      */
     public function suspendService($package, $service, $parent_package = null, $parent_service = null)
     {
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
 
         if ($package->meta->type == 'domain') {
@@ -582,7 +582,7 @@ class Namesilo extends RegistrarModule
      */
     public function renewService($package, $service, $parent_package = null, $parent_service = null, $years = null)
     {
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
 
         // Renew domain renewDomain?version=1&type=xml&key=12345&domain=namesilo.com&years=2
@@ -1779,7 +1779,7 @@ class Namesilo extends RegistrarModule
 
         if (!empty($post)) {
             $fields = $this->serviceFieldsToObject($service->fields);
-            $row = $this->getModuleRow($package->module_row);
+            $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
             $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
             $domains = new NamesiloDomains($api);
 
@@ -1853,7 +1853,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $domains = new NamesiloDomains($api);
 
@@ -1979,7 +1979,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $email_forwarding = new NamesiloEmailForwarding($api);
 
@@ -2079,7 +2079,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $dns = new NamesiloDomainsDns($api);
 
@@ -2129,7 +2129,7 @@ class Namesilo extends RegistrarModule
     {
         $fields = $this->serviceFieldsToObject($service->fields);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $ns = new NamesiloDomainsNs($api);
 
@@ -2195,7 +2195,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $ns = new NamesiloDomainsNs($api);
 
@@ -2270,7 +2270,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $dns = new NamesiloDomainsDns($api);
 
@@ -2358,7 +2358,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $dns = new NamesiloDomainsDns($api);
 
@@ -2463,7 +2463,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $domains = new NamesiloDomains($api);
         $transfer = new NamesiloDomainsTransfer($api);
@@ -2709,11 +2709,15 @@ class Namesilo extends RegistrarModule
             return $tlds;
         }
 
+        $this->log('getPrices', serialize(['user' => $row->meta->user]), 'input', true);
+
         $result = $this->getApi(
             $row->meta->user,
             $row->meta->key,
             $row->meta->sandbox == 'true'
         )->submit('getPrices');
+
+        $this->log('getPrices', $result->raw(), 'output', !empty($result->response()));
 
         if (!$result->response()) {
             return [];
@@ -2955,7 +2959,8 @@ class Namesilo extends RegistrarModule
     private function logRequest(NamesiloApi $api, NamesiloResponse $response)
     {
         $last_request = $api->lastRequest();
-        $url = substr($last_request['url'], 0, strpos($last_request['url'], '?'));
+        $url = substr($last_request['url'], 0, strpos($last_request['url'], '?')) . ' (' . $api->getUser() . ')';
+
         $this->log($url, serialize($last_request['args']), 'input', true);
         $this->log(
             $url,
@@ -3028,7 +3033,7 @@ class Namesilo extends RegistrarModule
     private function checkDomainStatus($service, $package)
     {
         $fields = $this->serviceFieldsToObject($service->fields);
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         $domains = new NamesiloDomains($api);
         $domain_info = $domains->getDomainInfo(['domain' => $fields->domain])->response();

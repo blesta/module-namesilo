@@ -159,4 +159,14 @@ class NamesiloApi
     {
         return $this->last_request;
     }
+
+    /**
+     * Returns the user used to cannect to the API
+     *
+     * @return string The API user
+     */
+    public function getUser()
+    {
+        return $this->user;
+    }
 }

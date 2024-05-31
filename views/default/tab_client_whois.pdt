@@ -39,7 +39,6 @@
                                 // Draw each form field associated with this label
                                 $tooltips = [];
                                 foreach ($field->fields as $input) {
-
                                     // Collect all tooltips to be displayed at the end
                                     if ($input->type == 'tooltip') {
                                         $tooltips[] = $input;
@@ -82,7 +81,6 @@
                                         // Draw the primary label/field
                                         call_user_func_array([$this->Form, $field->type], $field->params);
                                         call_user_func_array([$this->Form, $input->type], $input->params);
-                                        //mail( "julian@netlink.ie", "API Debug", var_export( $input->params, true ), "From: blesta@localhost\n\n" );
 
                                         foreach ($tooltips as $tooltip) {
                                             ?>

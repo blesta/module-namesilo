@@ -130,30 +130,32 @@ class NamesiloResponse
      */
     private function formatAttributes($attributes)
     {
-        foreach ($attributes as $key => $attribute) {
-            if (is_array($attribute)) {
-                $attributes->{$key} = $this->formatAttributes((object)$attribute);
-                $attributes->{$key} = (array)$attributes->{$key};
-            }
-
-            if (is_object($attribute)) {
-                $attributes->{$key} = $this->formatAttributes($attribute);
-
-                if (isset($attribute->{'@attributes'})) {
-                    unset($attributes->{$key}->{'@attributes'});
+        if (!empty($attributes)) {
+            foreach ($attributes as $key => $attribute) {
+                if (is_array($attribute)) {
+                    $attributes->{$key} = $this->formatAttributes((object) $attribute);
+                    $attributes->{$key} = (array) $attributes->{$key};
                 }
-            }
 
-            if (isset($attributes->{$key}) && !is_scalar($attributes->{$key})) {
-                foreach ($attributes->{$key} as $a_key => $items) {
-                    if (!is_scalar($items)) {
-                        if (count((array) $items) == 1 && is_array($attributes->{$key})) {
-                            $attributes->{$key}[$a_key] = $items->{0};
-                        }
+                if (is_object($attribute)) {
+                    $attributes->{$key} = $this->formatAttributes($attribute);
 
-                        if (count((array) $items) == 1 && is_object($attributes->{$key})) {
-                            if (isset($items->{0})) {
-                                $attributes->{$key}->{$a_key} = $items->{0};
+                    if (isset($attribute->{'@attributes'})) {
+                        unset($attributes->{$key}->{'@attributes'});
+                    }
+                }
+
+                if (isset($attributes->{$key}) && !is_scalar($attributes->{$key})) {
+                    foreach ($attributes->{$key} as $a_key => $items) {
+                        if (!is_scalar($items)) {
+                            if (count((array) $items) == 1 && is_array($attributes->{$key})) {
+                                $attributes->{$key}[$a_key] = $items->{0};
+                            }
+
+                            if (count((array) $items) == 1 && is_object($attributes->{$key})) {
+                                if (isset($items->{0})) {
+                                    $attributes->{$key}->{$a_key} = $items->{0};
+                                }
                             }
                         }
                     }

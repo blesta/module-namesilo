@@ -21,6 +21,8 @@ class Namesilo extends RegistrarModule
      * @var string Default module view path
      */
     private static $defaultModuleView;
+    
+    private $api;
 
     /**
      * Initializes the module
@@ -1550,6 +1552,7 @@ class Namesilo extends RegistrarModule
         if ($package->meta->type == 'domain') {
             $tabs = [
                 'tabWhois' => Language::_('Namesilo.tab_whois.title', true),
+                'tabManageContacts' => Language::_('Namesilo.tab_manage_contacts.title', true),
                 'tabEmailForwarding' => Language::_('Namesilo.tab_email_forwarding.title', true),
                 'tabNameservers' => Language::_('Namesilo.tab_nameservers.title', true),
                 'tabHosts' => Language::_('Namesilo.tab_hosts.title', true),
@@ -1596,6 +1599,10 @@ class Namesilo extends RegistrarModule
             $tabs = [
                 'tabClientWhois' => [
                     'name' => Language::_('Namesilo.tab_whois.title', true),
+                    'icon' => 'fas fa-users'
+                ],
+                'tabClientManageContacts' => [
+                    'name' => Language::_('Namesilo.tab_manage_contacts.title', true),
                     'icon' => 'fas fa-users'
                 ],
                 'tabClientEmailForwarding' => [
@@ -1685,6 +1692,36 @@ class Namesilo extends RegistrarModule
     public function tabClientWhois($package, $service, array $get = null, array $post = null, array $files = null)
     {
         return $this->manageWhois('tab_client_whois', $package, $service, $get, $post, $files);
+    }
+    
+    /**
+     * Admin Manage Contacts tab
+     *
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @param array $files Any FILES parameters
+     * @return string The string representing the contents of this tab
+     */
+    public function tabManageContacts($package, $service, array $get = null, array $post = null, array $files = null)
+    {
+        return $this->manageManageContacts('tab_manage_contacts', $package, $service, $get, $post, $files);
+    }
+    
+    /**
+     * Client Manage Contacts tab
+     *
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @param array $files Any FILES parameters
+     * @return string The string representing the contents of this tab
+     */
+    public function tabClientManageContacts($package, $service, array $get = null, array $post = null, array $files = null)
+    {
+        return $this->manageManageContacts('tab_client_manage_contacts', $package, $service, $get, $post, $files);
     }
 
     /**
@@ -1963,109 +2000,128 @@ class Namesilo extends RegistrarModule
      */
     private function manageWhois($view, $package, $service, array $get = null, array $post = null, array $files = null)
     {
-        $vars = new stdClass();
-
         // if the domain is pending transfer display a notice of such
         $checkDomainStatus = $this->checkDomainStatus($service, $package);
         if (isset($checkDomainStatus)) {
             return $checkDomainStatus;
         }
 
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+
+        // Initialize variables
+        $vars = new stdClass();
         $this->view = new View($view, 'default');
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
-
-        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
-        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
-        $domains = new NamesiloDomains($api);
-
-        $sections = ['registrant', 'admin', 'tech', 'billing'];
-
-        $vars = new stdClass();
-
-        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $sections = ['registrant', 'administrative', 'technical', 'billing'];
         $fields = $this->serviceFieldsToObject($service->fields);
-
-        $domainInfo = $domains->getDomainInfo(['domain' => $fields->domain]);
-        if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-            $this->processResponse($api, $domainInfo);
-
+        
+        // Get the current contact IDs
+        if (!($contact_ids = $this->getContactsByDomain($domains, $fields->domain))) {
             return false;
         }
 
-        $contact_ids = $domainInfo->response(true)['contact_ids'];
-
         if (!empty($post)) {
-            $new_ids = $delete_ids = [];
-
-            $params = ['domain' => $fields->domain];
-
-            foreach ($post as $key => $value) {
-                // Format phone number
-                if ($value['ph']) {
-                    $value['ph'] = $this->formatPhone($value['ph'], $value['ct']);
-                }
-
-                $response = $domains->addContacts($value);
-                $this->processResponse($api, $response);
-                if (self::$codes[$response->status()][1] == 'success') {
-                    $new_ids[$key] = $params[$key] = $response->response()->contact_id;
-                    $delete_ids[] = $contact_ids[$key];
-                }
-            }
-
-            $response = $domains->setContacts($params);
-            if (self::$codes[$response->status()][1] == 'success') {
-                // Delete old contact IDs and set new ones
-                foreach ($delete_ids as $id) {
-                    $domains->deleteContacts(['contact_id' => $id]);
-                }
-                $contact_ids = array_replace($contact_ids, $new_ids);
-            }
+            $post['domain'] = $fields->domain;
+            $domains->setContacts($post);
+            
+            $vars = (object) $post;
+        } else {
+            $vars = (object) $contact_ids;
         }
 
-        $contacts = $temp = [];
-        foreach ($contact_ids as $type => $id) {
-            if (!isset($temp[$id])) {
-                $response = $domains->getContacts(['contact_id' => $id]);
-                if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
-                    $temp[$id] = $response->response()->contact;
-                    $contacts[$type] = $temp[$id];
-                }
-            } else {
-                $contacts[$type] = $temp[$id];
-            }
-
-            // Format fields
-            foreach ($contacts as $section => $element) {
-                foreach ($element as $name => $value) {
-                    // Value must be a string
-                    if (!is_scalar($value)) {
-                        $value = '';
-                    }
-
-                    if (isset($whois_fields[$name]['rp'])) {
-                        $vars->{$section . '[' . $whois_fields[$name]['rp'] . ']'} = $value;
-                    }
-                }
-            }
+        $contacts = [];
+        $module = $this->getModule();
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true);
         }
-
-        $all_fields = [];
-        foreach ($whois_fields as $field => $value) {
-            $key = $value['rp'];
-            $all_fields['administrative[' . $key . ']'] = $value;
-            $all_fields['technical[' . $key . ']'] = $value;
-            $all_fields['registrant[' . $key . ']'] = $value;
-            $all_fields['billing[' . $key . ']'] = $value;
-        }
-
+        
         $this->view->set('vars', $vars);
-        $this->view->set('fields', $this->arrayToModuleFields($all_fields, null, $vars)->getFields());
+        $this->view->set('contact_ids', $contacts);
         $this->view->set('sections', $sections);
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
+    }
+    
+    /**
+     * Gets all the contact IDs for the given domain
+     * 
+     * @param NamesiloDomains $domains_command The API command object to use for the request
+     * @param string $domain The domain for which to fetch contacts
+     * @return boolean
+     */
+    private function getContactsByDomain($domains_command, $domain)
+    {
+        $domainInfo = $domains_command->getDomainInfo(['domain' => $domain]);
+        if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+            $this->processResponse($this->api, $domainInfo);
+
+            return false;
+        }
+
+        return $domainInfo->response(true)['contact_ids'];        
+    }
+    
+    /**
+     * Handle updating contact information
+     *
+     * @param string $view The view to use
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @param array $files Any FILES parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function manageManageContacts($view, $package, $service, array $get = null, array $post = null, array $files = null)
+    {
+        // if the domain is pending transfer display a notice of such
+        $checkDomainStatus = $this->checkDomainStatus($service, $package);
+        if (isset($checkDomainStatus)) {
+            return $checkDomainStatus;
+        }
+
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+
+        // Initialize variables
+        $vars = new stdClass();
+        $this->view = new View($view, 'default');
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html']);
+        
+
+        if (!empty($post)) {
+            $domains->setContacts($post);
+            
+            $vars = (object) $post;
+        }
+
+        $contacts = [];
+        $module = $this->getModule();
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true);
+        }
+        
+        $this->view->set('vars', $vars);
+        $this->view->set('contacts', $contacts);
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        return $this->view->fetch();
+    }
+    
+    private function addContactFromWhois($key, $contact, &$new_ids, &$delete_ids) {
+        
     }
 
     /**
@@ -3022,6 +3078,23 @@ class Namesilo extends RegistrarModule
 
         return true;
     }
+    
+    /**
+     * Loads the given API command class
+     * 
+     * @param string $command The name of the command to load
+     * @param int $module_row_id The ID of the module row which provides credentials for initializing the API
+     * @return mixed The API command object
+     */
+    private function loadApiCommand($command, $module_row_id) {
+        $full_command_class = 'Namesilo' . $command;
+        
+        if (!$this->api) {
+            $row = $this->getModuleRow($module_row_id);
+            $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        }
+        return new $full_command_class($this->api);
+    }
 
     /**
      * Initializes the NamesiloApi and returns an instance of that object
@@ -3044,8 +3117,9 @@ class Namesilo extends RegistrarModule
                 $sandbox = $row->meta->sandbox;
             }
         }
-
-        return new NamesiloApi($user, $key, $sandbox, $username, $batch);
+        
+        $this->api = new NamesiloApi($user, $key, $sandbox, $username, $batch);
+        return $this->api;
     }
 
     /**

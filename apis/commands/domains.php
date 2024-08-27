@@ -90,6 +90,17 @@ class NamesiloDomains
     {
         return $this->api->submit('contactAdd', $vars);
     }
+    
+    /**
+     * Updates a contact
+     *
+     * @param array $vars An array of contact information
+     * @return NamesiloResponse
+     */
+    public function updateContacts(array $vars)
+    {
+        return $this->api->submit('contactUpdate', $vars);
+    }
 
     /**
      * Sets contact information for the requested domain.

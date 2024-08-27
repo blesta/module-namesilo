@@ -69,6 +69,14 @@ $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
 $lang['Namesilo.tab_whois.copy_registrant_info'] = 'Copy Registrant Info';
 
 $lang['Namesilo.tab_manage_contacts.title'] = 'Manage Contacts';
+$lang['Namesilo.tab_manage_contacts.heading_name'] = 'Contact Name';
+$lang['Namesilo.tab_manage_contacts.heading_options'] = 'Options';
+$lang['Namesilo.tab_manage_contacts.option_edit'] = 'Edit';
+$lang['Namesilo.tab_manage_contacts.field_sync'] = 'Pull Contacts From Namesilo';
+$lang['Namesilo.tab_manage_contacts.field_submit'] = 'Set Default Registrant Contact';
+
+
+$lang['Namesilo.tab_edit_contact.title'] = 'Edit Contact';
 
 $lang['Namesilo.tab_email_forwarding.title'] = 'Email Forwarding';
 $lang['Namesilo.tab_email_forwarding.desc'] = 'Email forwarding is automatically directing email sent from one address to a different email address. For example, if you had an existing email address of email@email.com, and then registered the domain newdomain.com, you could use email forward to direct sales@newdomain.com to your existing email@email.com email address.';

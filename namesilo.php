@@ -103,59 +103,67 @@ class Namesilo extends RegistrarModule
                 foreach($module_rows as $module_row) {
                     $api = $this->getApi($module_row->meta->user, $module_row->meta->key, $module_row->meta->sandbox == 'true');
                     $domains = new NamesiloDomains($api);
-                    $domainInfo = $domains->getList([]);
-                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-                        $this->processResponse($api, $domainInfo);
-                    }
-
-                    $contactsInfo = $domains->getContacts([]);
-                    if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
-                        $this->processResponse($api, $contactsInfo);
-                    }
-                    $contacts = [];
-                    foreach ($contactsInfo->response()->contact as $contact) {
-                        $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
-                    }
-                    
-                    $services = $this->Record->from('services')->
-                        select(['services.*', 'service_fields.value' => 'domain'])->
-                        on('service_fields.key', '=', 'domain')->
-                        innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-                        where('services.module_row_id', '=', $module_row->id)->
-                        where('services.status', '=', 'active')->
-                        fetchAll();
-                    $client_contacts = [];
-                    foreach ($services as $service) {
-                        $domainInfo = $domains->getDomainInfo(['domain' => $service->domain]);
-                        if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-                            $this->processResponse($api, $domainInfo);
-
-                            return false;
-                        }
-
-                        $contact_ids = $domainInfo->response(true)['contact_ids'];
-                        if (!isset($client_contacts[$service->client_id])) {
-                            $client_contacts[$service->client_id] = [];
-                        }
-                        foreach ($contact_ids as $contact_id) {
-                            $client_contacts[$service->client_id][$contact_id] = $contacts[$contact_id];
-                        }
-                    }
-                    
-                    foreach ($client_contacts as $client_id => $contacts) {
-                        $this->Record->insert(
-                            'module_client_meta',
-                            [
-                                'module_id' => $module_row->module_id,
-                                'module_row_id' => $module_row->id,
-                                'client_id' => $client_id,
-                                'key' => 'contacts',
-                                'value' => json_encode($contacts)
-                            ]
-                        );
-                    }
+                    $this->setContactsFromServices($domains, $module_row);
                 }
             }
+        }
+    }
+    
+    private function setContactsFromServices($domains, $module_row, $client_id = null)
+    {
+        $this->Record->from('services')->
+            select(['services.*', 'service_fields.value' => 'domain'])->
+            on('service_fields.key', '=', 'domain')->
+            innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
+            where('services.module_row_id', '=', $module_row->id)->
+            where('services.status', '=', 'active');
+        if ($client_id) {
+            $this->Record->where('services.client_id', '=', $client_id);
+        }
+        $services = $this->Record->fetchAll();
+        
+        
+        $contactsInfo = $domains->getContacts([]);
+        if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
+            $this->processResponse($this->api, $contactsInfo);
+        }
+        $contacts = [];
+        $namesilo_contacts = is_array($contactsInfo->response()->contact)
+            ? $contactsInfo->response()->contact
+            : [$contactsInfo->response()->contact];
+        foreach ($namesilo_contacts as $contact) {
+            $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
+        }
+        
+        $client_contacts = [];
+        foreach ($services as $service) {
+            $domainInfo = $domains->getDomainInfo(['domain' => $service->domain]);
+            if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+                $this->processResponse($this->api, $domainInfo);
+
+                continue;
+            }
+
+            $contact_ids = $domainInfo->response(true)['contact_ids'];
+            if (!isset($client_contacts[$service->client_id])) {
+                $client_contacts[$service->client_id] = [];
+            }
+            foreach ($contact_ids as $contact_id) {
+                $client_contacts[$service->client_id][$contact_id] = $contacts[$contact_id];
+            }
+        }
+
+        foreach ($client_contacts as $client_id => $contacts) {
+            $this->Record->insert(
+                'module_client_meta',
+                [
+                    'module_id' => $module_row->module_id,
+                    'module_row_id' => $module_row->id,
+                    'client_id' => $client_id,
+                    'key' => 'contacts',
+                    'value' => json_encode($contacts)
+                ]
+            );
         }
     }
 
@@ -1008,62 +1016,6 @@ class Namesilo extends RegistrarModule
 
         $this->Input->setRules($this->getRowRules($vars));
 
-                if (!isset($this->Record)) {
-                    Loader::loadComponents($this, ['Record']);
-                }
-
-
-                $module_rows = $this->getRows();
-                foreach($module_rows as $module_row) {
-                    $api = $this->getApi($module_row->meta->user, $module_row->meta->key, $module_row->meta->sandbox == 'true');
-                    $domains = new NamesiloDomains($api);
-                    $domainInfo = $domains->getList([]);
-                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-                        $this->processResponse($api, $domainInfo);
-                    }
-
-                    $contactsInfo = $domains->getContacts([]);
-                    if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
-                        $this->processResponse($api, $contactsInfo);
-                    }
-                    $contacts = [];
-                    foreach ($contactsInfo->response()->contact as $contact) {
-                        $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
-                    }
-                    
-                    $services = $this->Record->from('services')->
-                        select(['services.*', 'service_fields.value' => 'domain'])->
-                        on('service_fields.key', '=', 'domain')->
-                        innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-                        where('services.module_row_id', '=', $module_row->id)->
-                        fetchAll();
-                    foreach ($services as $service) {
-                        
-                        $domainInfo = $domains->getDomainInfo(['domain' => $service->domain]);
-                        if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-                            $this->processResponse($api, $domainInfo);
-
-                            return false;
-                        }
-
-                        $contact_ids = $domainInfo->response(true)['contact_ids'];
-                        var_dump($contact_ids);
-                        die;
-                        $this->Record->insert(
-                            'module_client_meta',
-                            [
-                                'module_id' => $module_row->module_id,
-                                'module_row_id' => $module_row->id,
-                                'client_id' => $service->client_id,
-                                'key' => 'contacts',
-                                'value' => json_encode($c)
-                            ]
-                        );
-                    }
-                    
-                    var_dump($contacts);
-                    die;
-                }
         // Validate module row
         if ($this->Input->validates($vars)) {
             // Build the meta data for this row
@@ -2069,7 +2021,7 @@ class Namesilo extends RegistrarModule
     }
     
     /**
-     * Handle updating contact information
+     * Handle managing contact information
      *
      * @param string $view The view to use
      * @param stdClass $package A stdClass object representing the current package
@@ -2087,25 +2039,28 @@ class Namesilo extends RegistrarModule
             return $checkDomainStatus;
         }
 
+        if (array_key_exists('contact_id', $get)) {
+            return $this->handleContactEdit($view, $package, $service, $get, $post);
+        } else {
+            return $this->handleContactList($view, $package, $service, $get, $post);
+        }
+    }
+    
+    /**
+     * Handle updating contact information
+     *
+     * @param string $view The view to use
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function handleContactEdit($view, $package, $service, array $get = null, array $post)
+    {
         if (!isset($this->ModuleClientMeta)) {
             Loader::loadModels($this, ['ModuleClientMeta']);
         }
-        // Load the API command
-        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
-
-        // Initialize variables
-        $vars = new stdClass();
-        $this->view = new View($view, 'default');
-        // Load the helpers required for this view
-        Loader::loadHelpers($this, ['Form', 'Html']);
-        
-
-        if (!empty($post)) {
-            $domains->setContacts($post);
-            
-            $vars = (object) $post;
-        }
-
         $contacts = [];
         $module = $this->getModule();
         $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
@@ -2113,14 +2068,141 @@ class Namesilo extends RegistrarModule
             $contacts = json_decode($contact_meta->value, true);
         }
         
+        // Make sure a user only edits their own contact
+        if (!array_key_exists($post['contact_id'] ?? $get['contact_id'], $contacts)) {
+            return $this->handleContactList($view, $package, $service, $get, $post);
+        }
+        
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+
+        // Initialize variables
+        $vars = new stdClass();
+        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $contact_id = $post['contact_id'] ?? $get['contact_id'];
+        $this->view = new View($view == 'tab_manage_contacts' ? 'tab_edit_contact' : 'tab_client_edit_contact', 'default');
+        $this->view->base_uri = $this->base_uri;
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html']);
+        
+        $response = $domains->getContacts(['contact_id' => $contact_id]);
+        if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
+            return false;
+        }
+        
+        if (!empty($post)) {
+            $response = $domains->updateContacts($post);
+            $this->processResponse($this->api, $response);
+            if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
+                $contacts[$contact_id] = $post['fn'] . ' ' . $post['ln'];
+                $this->ModuleClientMeta->set(
+                    $service->client_id,
+                    $module->id,
+                    $service->module_row_id,
+                    [['key' => 'contacts', 'value' => json_encode($contacts)]]
+                );
+            }
+            
+            $vars = (object) $post;
+        } else {
+            $vars = $this->formatContact($response->response()->contact, $whois_fields);
+        }
+
+        $all_fields = [];
+        foreach ($whois_fields as $value) {
+            $key = $value['rp'];
+            $all_fields[$key] = $value;
+        }
+        
         $this->view->set('vars', $vars);
-        $this->view->set('contacts', $contacts);
+        $this->view->set('contact_id', $contact_id);
+        $this->view->set('fields', $this->arrayToModuleFields($all_fields, null, $vars)->getFields());
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
     }
     
-    private function addContactFromWhois($key, $contact, &$new_ids, &$delete_ids) {
+    private function formatContact($contact, $whois_fields)
+    {
+        $vars = ['contact_id' => $contact->contact_id];
+        foreach ($contact as $contact_field => $value){
+            if (!array_key_exists($contact_field, $whois_fields) || !is_string($value)) {
+                continue;
+            }
+            
+            $vars[$whois_fields[$contact_field]['rp']] = $value;
+        }   
+        
+        return (object) $vars;
+    }
+    
+    /**
+     * Handle listing contact information
+     *
+     * @param string $view The view to use
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function handleContactList($view, $package, $service, array $get = null, array $post) {
+        
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+        $module = $this->getModule();
+
+        // Initialize variables
+        $vars = new stdClass();
+        $this->view = new View($view, 'default');
+        $this->view->base_uri = $this->base_uri;
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html']);
+
+        if (!empty($post)) {
+            if ($post['submit'] && $post['default_contact_id']) {
+                $this->ModuleClientMeta->set(
+                    $service->client_id,
+                    $module->id,
+                    $service->module_row_id,
+                    [['key' => 'default_contact_id', 'value' => $post['default_contact_id']]]
+                );
+            } elseif ($post['pull_contacts']) {
+                $module_row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
+                $this->setContactsFromServices($domains, $module_row);
+            }
+            
+            $vars = (object) $post;
+        } else {
+            $default_meta = $this->ModuleClientMeta->get(
+                $service->client_id,
+                'default_contact_id',
+                $module->id,
+                $service->module_row_id
+            );
+            
+            $vars = (object) ['default_contact_id' => $default_meta->value ?? null];
+        }
+
+        $contacts = [];
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true);
+        }
+        
+        $this->view->set('vars', $vars);
+        $this->view->set('contacts', $contacts);
+        $this->view->set('service', $service);
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        return $this->view->fetch();
+    }
+    
+    private function addContactFromWhois($key, $contact, &$new_ids, &$delete_ids)
+    {
         
     }
 

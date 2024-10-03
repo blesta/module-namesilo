@@ -2039,8 +2039,12 @@ class Namesilo extends RegistrarModule
             return $checkDomainStatus;
         }
 
-        if (array_key_exists('contact_id', $get)) {
-            return $this->handleContactEdit($view, $package, $service, $get, $post);
+        if ($get['action'] ?? '' == 'manage') {
+            if (array_key_exists('contact_id', $get)) {
+                return $this->handleContactEdit($view, $package, $service, $get, $post);
+            } else {
+                return $this->handleContactAdd($view, $package, $service, $get, $post);
+            }
         } else {
             return $this->handleContactList($view, $package, $service, $get, $post);
         }
@@ -2116,6 +2120,69 @@ class Namesilo extends RegistrarModule
         
         $this->view->set('vars', $vars);
         $this->view->set('contact_id', $contact_id);
+        $this->view->set('fields', $this->arrayToModuleFields($all_fields, null, $vars)->getFields());
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        return $this->view->fetch();
+    }
+    
+    /**
+     * Handle updating contact information
+     *
+     * @param string $view The view to use
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function handleContactAdd($view, $package, $service, array $get = null, array $post)
+    {
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        $contacts = [];
+        $module = $this->getModule();
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true);
+        }
+        
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+
+        // Initialize variables
+        $vars = new stdClass();
+        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $this->view = new View($view == 'tab_manage_contacts' ? 'tab_edit_contact' : 'tab_client_edit_contact', 'default');
+        $this->view->base_uri = $this->base_uri;
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html']);
+        
+        if (!empty($post)) {
+            $response = $domains->addContacts($post);
+            $this->processResponse($this->api, $response);
+            var_dump($response);
+            if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
+                $contacts[$response->response()->contact_id] = $post['fn'] . ' ' . $post['ln'];
+                $this->ModuleClientMeta->set(
+                    $service->client_id,
+                    $module->id,
+                    $service->module_row_id,
+                    [['key' => 'contacts', 'value' => json_encode($contacts)]]
+                );
+            }
+            
+            $vars = (object) $post;
+        }
+
+        $all_fields = [];
+        foreach ($whois_fields as $value) {
+            $key = $value['rp'];
+            $all_fields[$key] = $value;
+        }
+        
+        $this->view->set('vars', $vars);
         $this->view->set('fields', $this->arrayToModuleFields($all_fields, null, $vars)->getFields());
         $this->view->setDefaultView(self::$defaultModuleView);
 

@@ -4,7 +4,17 @@
     $this->Form->fieldHidden('contact_id', $contact_id ?? null);
     ?>
     <div class="title_row first">
+        <?php
+        if (isset($contact_id)) {
+        ?>
         <h3><?php $this->_('Namesilo.tab_edit_contact.title'); ?></h3>
+        <?php
+        } else {
+        ?>
+        <h3><?php $this->_('Namesilo.tab_add_contact.title'); ?></h3>
+        <?php
+        }
+        ?>
     </div>
     <div class="pad">
         <ul>
@@ -59,6 +69,9 @@
             ?>
         </ul>
     </div>
-    <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_whois.field_submit'); ?></a></div>
+    <div class="button_row">
+        <a class="btn btn-default float-right " href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/';?>"><?php $this->_('Namesilo.tab_edit_contact.field_back'); ?></a>
+        <a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_edit_contact.field_submit'); ?></a>
+    </div>
     <?php
     $this->Form->end();

@@ -2039,15 +2039,18 @@ class Namesilo extends RegistrarModule
             return $checkDomainStatus;
         }
 
-        if ($get['action'] ?? '' == 'manage') {
+        if (($get['action'] ?? '') == 'manage') {
             if (array_key_exists('contact_id', $get)) {
                 return $this->handleContactEdit($view, $package, $service, $get, $post);
             } else {
                 return $this->handleContactAdd($view, $package, $service, $get, $post);
             }
-        } else {
-            return $this->handleContactList($view, $package, $service, $get, $post);
         }
+        
+        if (($get['action'] ?? '') == 'delete') {
+            $this->handleContactDelete($package, $service, $get, $post);
+        }
+        return $this->handleContactList($view, $package, $service, $get, $post);
     }
     
     /**
@@ -2120,10 +2123,66 @@ class Namesilo extends RegistrarModule
         
         $this->view->set('vars', $vars);
         $this->view->set('contact_id', $contact_id);
+        $this->view->set('service', $service);
         $this->view->set('fields', $this->arrayToModuleFields($all_fields, null, $vars)->getFields());
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
+    }
+    
+    /**
+     * Handle deleting contact information
+     *
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $get Any GET parameters
+     * @param array $post Any POST parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function handleContactDelete($package, $service, array $get = null, array $post)
+    {
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        $contacts = [];
+        $module = $this->getModule();
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true);
+        }
+        
+        // Make sure a user only edits their own contact
+        if (!array_key_exists($post['contact_id'] ?? $get['contact_id'], $contacts)) {
+            return;
+        }
+        
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+        $contact_id = $post['contact_id'] ?? $get['contact_id'];
+        $response = $domains->getContacts(['contact_id' => $contact_id]);
+        if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
+            return false;
+        }
+        
+        $response = $domains->deleteContacts(['contact_id' => $contact_id]);
+        $this->processResponse($this->api, $response);
+        if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
+            unset($contacts[$contact_id]);
+            $this->ModuleClientMeta->set(
+                $service->client_id,
+                $module->id,
+                $service->module_row_id,
+                [['key' => 'contacts', 'value' => json_encode($contacts)]]
+            );
+            
+            $this->setMessage(
+                'success',
+                Language::_(
+                    'Namesilo.!success.contact_deleted',
+                    true
+                )
+            );
+        }
     }
     
     /**
@@ -2171,6 +2230,8 @@ class Namesilo extends RegistrarModule
                     $service->module_row_id,
                     [['key' => 'contacts', 'value' => json_encode($contacts)]]
                 );
+                
+                return $this->handleContactList($view, $package, $service, $get);
             }
             
             $vars = (object) $post;
@@ -2213,7 +2274,7 @@ class Namesilo extends RegistrarModule
      * @param array $post Any POST parameters
      * @return string The string representing the contents of this tab
      */
-    private function handleContactList($view, $package, $service, array $get = null, array $post) {
+    private function handleContactList($view, $package, $service, array $get = null, array $post = []) {
         
         if (!isset($this->ModuleClientMeta)) {
             Loader::loadModels($this, ['ModuleClientMeta']);

@@ -4,37 +4,38 @@
     ?>
         <a class="btn btn-primary mb-2 pull-right" href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/?action=manage';?>"><i class="fas fa-plus"></i> <?php $this->_('Namesilo.tab_manage_contacts.option_add');?></a>
         <table class="table">
-            <tr class="heading_row">
-                <td class="icon">&nbsp;</td>
-                <td><?php $this->_('Namesilo.tab_manage_contacts.heading_name');?></td>
-                <td><?php $this->_('Namesilo.tab_manage_contacts.heading_options');?></td>
-            </tr>
-        </thead>
-        <tbody>
+            <thead>
+                <tr class="heading_row">
+                    <td class="icon">&nbsp;</td>
+                    <td><?php $this->_('Namesilo.tab_manage_contacts.heading_name');?></td>
+                    <td><?php $this->_('Namesilo.tab_manage_contacts.heading_options');?></td>
+                </tr>
+            </thead>
+            <tbody>
+            <?php
+            $i = 0;
+            foreach ($contacts ?? [] as $contact_id => $contact_name) {
+            ?>
+                <tr <?php echo (($i % 2) == 1) ? 'class="odd_row"' : '' ?>>
+                    <td><?php $this->Form->fieldRadio('default_contact_id', $contact_id, ($vars->default_contact_id ?? null) == $contact_id, []); ?></td>
+                    <td><?php echo $this->Html->safe($contact_name)?></td>
+                    <td>
+                        <a href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/?action=manage&contact_id=' . $contact_id;?>"><?php $this->_('Namesilo.tab_manage_contacts.option_edit');?></a>
+                        <a href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/?action=delete&contact_id=' . $contact_id;?>" class="manage"><?php $this->_('Namesilo.tab_manage_contacts.option_delete');?></a>
+                    </td>
+                </tr>
+            <?php
+                $i++;
+            }
+            ?>
+            </tbody>
+        </table>
+        <div class="button_row">
+            <?php
+            $this->Form->fieldSubmit('pull_contacts', $this->_('Namesilo.tab_manage_contacts.field_sync', true), ['class' => 'btn btn-default float-right']);
+            $this->Form->fieldSubmit('submit', $this->_('Namesilo.tab_manage_contacts.field_submit', true), ['class' => 'btn btn-primary float-right']);
+            ?>
+        </div>
         <?php
-        $i = 0;
-        foreach ($contacts ?? [] as $contact_id => $contact_name) {
-        ?>
-            <tr <?php echo (($i % 2) == 1) ? 'class="odd_row"' : '' ?>>
-                <td><?php $this->Form->fieldRadio('default_contact_id', $contact_id, ($vars->default_contact_id ?? null) == $contact_id, []); ?></td>
-                <td><?php echo $this->Html->safe($contact_name)?></td>
-                <td>
-                    <a href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/?action=manage&contact_id=' . $contact_id;?>"><?php $this->_('Namesilo.tab_manage_contacts.option_edit');?></a>
-                    <a href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/?action=delete&contact_id=' . $contact_id;?>" class="manage"><?php $this->_('Namesilo.tab_manage_contacts.option_delete');?></a>
-                </td>
-            </tr>
-        <?php
-            $i++;
-        }
-        ?>
-        </tbody>
-    </table>
-    <div class="button_row">
-        <?php
-        $this->Form->fieldSubmit('pull_contacts', $this->_('Namesilo.tab_manage_contacts.field_sync', true), ['class' => 'btn btn-default float-right']);
-        $this->Form->fieldSubmit('submit', $this->_('Namesilo.tab_manage_contacts.field_submit', true), ['class' => 'btn btn-primary float-right']);
-        ?>
-    </div>
-    <?php
-    $this->Form->end();
+        $this->Form->end();
     

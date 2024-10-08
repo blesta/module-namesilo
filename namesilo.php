@@ -154,16 +154,20 @@ class Namesilo extends RegistrarModule
         }
 
         foreach ($client_contacts as $client_id => $contacts) {
-            $this->Record->insert(
-                'module_client_meta',
-                [
-                    'module_id' => $module_row->module_id,
-                    'module_row_id' => $module_row->id,
-                    'client_id' => $client_id,
-                    'key' => 'contacts',
-                    'value' => json_encode($contacts)
-                ]
-            );
+            $this->Record->duplicate('module_id', '=', $module_row->module_id)->
+                duplicate('module_row_id', '=', $module_row->id)->
+                duplicate('client_id', '=', $client_id)->
+                duplicate('key', '=', 'contacts')->
+                insert(
+                    'module_client_meta',
+                    [
+                        'module_id' => $module_row->module_id,
+                        'module_row_id' => $module_row->id,
+                        'client_id' => $client_id,
+                        'key' => 'contacts',
+                        'value' => json_encode($contacts)
+                    ]
+                );
         }
     }
 
@@ -422,6 +426,19 @@ class Namesilo extends RegistrarModule
                     }
                 }
 
+                if (!isset($this->ModuleClientMeta)) {
+                    Loader::loadModels($this, ['ModuleClientMeta']);
+                }
+                $default_meta = $this->ModuleClientMeta->get(
+                    $vars['client_id'],
+                    'default_contact_id',
+                    $row->module_id,
+                    $row->id
+                );
+                
+                if (isset($default_meta->value)) {
+                    $fields['contact_id'] = $default_meta->value;
+                }
                 $whois_fields = Configure::get('Namesilo.whois_fields');
 
                 // Set all whois info from client ($vars['client_id'])
@@ -2291,14 +2308,14 @@ class Namesilo extends RegistrarModule
         Loader::loadHelpers($this, ['Form', 'Html']);
 
         if (!empty($post)) {
-            if ($post['submit'] && $post['default_contact_id']) {
+            if (isset($post['submit']) && $post['default_contact_id']) {
                 $this->ModuleClientMeta->set(
                     $service->client_id,
                     $module->id,
                     $service->module_row_id,
                     [['key' => 'default_contact_id', 'value' => $post['default_contact_id']]]
                 );
-            } elseif ($post['pull_contacts']) {
+            } elseif (isset($post['pull_contacts'])) {
                 $module_row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
                 $this->setContactsFromServices($domains, $module_row);
             }

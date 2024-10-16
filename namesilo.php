@@ -128,11 +128,14 @@ class Namesilo extends RegistrarModule
             $this->processResponse($this->api, $contactsInfo);
         }
         $contacts = [];
-        $namesilo_contacts = is_array($contactsInfo->response()->contact)
-            ? $contactsInfo->response()->contact
-            : [$contactsInfo->response()->contact];
-        foreach ($namesilo_contacts as $contact) {
-            $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
+        $contact_response = $contactsInfo->response();
+        if (isset($contact_response->contact)) {
+            $namesilo_contacts = is_array($contact_response->contact)
+                ? $contactsInfo->response()->contact
+                : [$contactsInfo->response()->contact];
+            foreach ($namesilo_contacts as $contact) {
+                $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
+            }
         }
         
         $client_contacts = [];
@@ -429,16 +432,7 @@ class Namesilo extends RegistrarModule
                 if (!isset($this->ModuleClientMeta)) {
                     Loader::loadModels($this, ['ModuleClientMeta']);
                 }
-                $default_meta = $this->ModuleClientMeta->get(
-                    $vars['client_id'],
-                    'default_contact_id',
-                    $row->module_id,
-                    $row->id
-                );
                 
-                if (isset($default_meta->value)) {
-                    $fields['contact_id'] = $default_meta->value;
-                }
                 $whois_fields = Configure::get('Namesilo.whois_fields');
 
                 // Set all whois info from client ($vars['client_id'])
@@ -470,6 +464,16 @@ class Namesilo extends RegistrarModule
 
                 $fields = array_intersect_key($vars, $input_fields);
 
+                $default_meta = $this->ModuleClientMeta->get(
+                    $vars['client_id'],
+                    'default_contact_id',
+                    $row->module_id,
+                    $row->id
+                );
+                
+                if (isset($default_meta->value)) {
+                    $fields['contact_id'] = $default_meta->value;
+                }
                 if (!empty($row->meta->portfolio)) {
                     $fields['portfolio'] = $row->meta->portfolio;
                 }

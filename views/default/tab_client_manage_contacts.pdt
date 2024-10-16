@@ -2,7 +2,7 @@
     <?php
     $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabClientManageContacts/');
     ?>
-        <a class="btn btn-secondary mb-2 pull-right" href="<?php echo $this->base_uri . 'clients/servicetab/' . (isset($service->client_id) ? $this->Html->safe($service->client_id) : null) . '/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabManageContacts/?action=manage';?>"><i class="fas fa-plus"></i> <?php $this->_('Namesilo.tab_manage_contacts.option_add');?></a>
+        <a class="btn btn-secondary mb-2 pull-right" href="<?php echo $this->base_uri . 'services/manage/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabClientManageContacts/?action=manage';?>"><i class="fas fa-plus"></i> <?php $this->_('Namesilo.tab_manage_contacts.option_add');?></a>
         <div class="table-responsive my-2">
             <table class="table table-curved table-striped">
                 <thead>

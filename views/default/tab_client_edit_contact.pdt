@@ -83,7 +83,7 @@
     </div>
     <div class="button_row">
         <a class="btn btn-default float-right " href="<?php echo $this->base_uri . 'services/manage/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabClientManageContacts/';?>"><?php $this->_('Namesilo.tab_edit_contact.field_back'); ?></a>
-        <a class="btn btn-secondary float-right submit" href="#"><?php $this->_('Namesilo.tab_edit_contact.field_submit'); ?></a>
+        <input type="submit" class="btn btn-secondary float-right submit" href="#" value="<?php $this->_('Namesilo.tab_edit_contact.field_submit'); ?>" />
     </div>
     <?php
     $this->Form->end();

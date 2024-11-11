@@ -62,11 +62,28 @@ $lang['Namesilo.package_fields.enable_epp_code'] = 'Allow Access';
 // Service management
 $lang['Namesilo.tab_whois.title'] = 'Whois';
 $lang['Namesilo.tab_whois.section_registrant'] = 'Registrant';
-$lang['Namesilo.tab_whois.section_admin'] = 'Administrative';
-$lang['Namesilo.tab_whois.section_tech'] = 'Technical';
+$lang['Namesilo.tab_whois.section_administrative'] = 'Administrative';
+$lang['Namesilo.tab_whois.section_technical'] = 'Technical';
 $lang['Namesilo.tab_whois.section_billing'] = 'Billing';
 $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
 $lang['Namesilo.tab_whois.copy_registrant_info'] = 'Copy Registrant Info';
+
+$lang['Namesilo.tab_manage_contacts.title'] = 'Manage Contacts';
+$lang['Namesilo.tab_manage_contacts.heading_name'] = 'Contact Name';
+$lang['Namesilo.tab_manage_contacts.heading_options'] = 'Options';
+$lang['Namesilo.tab_manage_contacts.option_add'] = 'Add Contact';
+$lang['Namesilo.tab_manage_contacts.option_edit'] = 'Edit';
+$lang['Namesilo.tab_manage_contacts.option_delete'] = 'Delete';
+$lang['Namesilo.tab_manage_contacts.field_sync'] = 'Pull Contacts From Namesilo';
+$lang['Namesilo.tab_manage_contacts.field_submit'] = 'Set Default Registrant Contact';
+
+
+$lang['Namesilo.tab_edit_contact.title'] = 'Edit Contact';
+$lang['Namesilo.tab_add_contact.title'] = 'Add Contact';
+
+
+$lang['Namesilo.tab_edit_contact.field_back'] = 'Back';
+$lang['Namesilo.tab_edit_contact.field_submit'] = 'Save Contact';
 
 $lang['Namesilo.tab_email_forwarding.title'] = 'Email Forwarding';
 $lang['Namesilo.tab_email_forwarding.desc'] = 'Email forwarding is automatically directing email sent from one address to a different email address. For example, if you had an existing email address of email@email.com, and then registered the domain newdomain.com, you could use email forward to direct sales@newdomain.com to your existing email@email.com email address.';
@@ -248,6 +265,7 @@ $lang['Namesilo.domain.CIRALanguage.fr'] = 'French';
 // Success messages
 $lang['Namesilo.!success.packages_saved'] = 'The packages have been successfully saved.';
 $lang['Namesilo.!success.epp_code_sent'] = "The EPP Code/Transfer Key has been sent to the administrative contact for this domain name via email.";
+$lang['Namesilo.!success.contact_deleted'] = "The contact was successfully deleted.";
 
 // Errors
 $lang['Namesilo.!error.FRLegalType.format'] = 'Please select a valid Legal Type';

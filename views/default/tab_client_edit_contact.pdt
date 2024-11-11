@@ -1,0 +1,89 @@
+
+<?php
+    $this->Form->create();
+    $this->Form->fieldHidden('contact_id', $contact_id ?? null);
+    ?>
+    <div class="title_row first">
+        <?php
+        if (isset($contact_id)) {
+        ?>
+        <h3><?php $this->_('Namesilo.tab_edit_contact.title'); ?></h3>
+        <?php
+        } else {
+        ?>
+        <h3><?php $this->_('Namesilo.tab_add_contact.title'); ?></h3>
+        <?php
+        }
+        ?>
+    </div>
+    <div class="form-group">
+            <?php
+            foreach ($fields as $field) {
+                ?>
+                <div class="form-group">
+                    <?php
+                    // Draw each form field associated with this label
+                    $tooltips = [];
+                    foreach ($field->fields as $input) {
+                        // Collect all tooltips to be displayed at the end
+                        if ($input->type == 'tooltip') {
+                            $tooltips[] = $input;
+                            continue;
+                        }
+
+                        // Draw the form field's secondary label if checkbox or radio item
+                        if (($input->type == 'fieldCheckbox' || $input->type == 'fieldRadio') && isset($input->label)) {
+                            $type = ($input->type == 'fieldCheckbox' ? 'checkbox' : 'radio');
+                            ?>
+                            <div class="<?php echo (isset($type) ? $this->Html->safe($type) : null); ?>">
+                                <label>
+                                    <?php
+                                    call_user_func_array([$this->Form, $field->type], $field->params);
+                                    echo (isset($field->params['name']) ? $this->Html->safe($field->params['name']) : null);
+                                    ?>
+                                </label>
+                                <?php
+                                foreach ($tooltips as $tooltip) {
+                                    ?>
+                                    <a href="#" data-toggle="tooltip" title="<?php echo (isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?>"><i class="fas fa-question-circle text-primary"></i></a>
+                                    <?php
+                                }
+                                ?>
+                            </div>
+                            <?php
+                        } else {
+                            if (isset($input->params['attributes']['class'])) {
+                                if (is_array($input->params['attributes']['class'])) {
+                                    $input->params['attributes']['class'][] = 'form-control';
+                                } else {
+                                    $input->params['attributes']['class'] .= ' form-control';
+                                }
+                            } else {
+                                $input->params['attributes']['class'] = 'form-control';
+                            }
+
+                            $input->params['attributes']['placeholder'] = (isset($field->params['name']) ? $field->params['name'] : null);
+
+                            // Draw the primary label/field
+                            call_user_func_array([$this->Form, $field->type], $field->params);
+                            call_user_func_array([$this->Form, $input->type], $input->params);
+
+                            foreach ($tooltips as $tooltip) {
+                                ?>
+                                <a href="#" data-toggle="tooltip" title="<?php echo (isset($tooltip->params['message']) ? $this->Html->safe($tooltip->params['message']) : null); ?>"><i class="fas fa-question-circle text-primary"></i></a>
+                                <?php
+                            }
+                        }
+                    }
+                    ?>
+                </div>
+                <?php
+            }
+            ?>
+    </div>
+    <div class="button_row">
+        <a class="btn btn-default float-right " href="<?php echo $this->base_uri . 'services/manage/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabClientManageContacts/';?>"><?php $this->_('Namesilo.tab_edit_contact.field_back'); ?></a>
+        <input type="submit" class="btn btn-secondary float-right submit" href="#" value="<?php $this->_('Namesilo.tab_edit_contact.field_submit'); ?>" />
+    </div>
+    <?php
+    $this->Form->end();

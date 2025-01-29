@@ -74,7 +74,7 @@ $lang['Namesilo.tab_manage_contacts.heading_options'] = 'Options';
 $lang['Namesilo.tab_manage_contacts.option_add'] = 'Add Contact';
 $lang['Namesilo.tab_manage_contacts.option_edit'] = 'Edit';
 $lang['Namesilo.tab_manage_contacts.option_delete'] = 'Delete';
-$lang['Namesilo.tab_manage_contacts.field_sync'] = 'Pull Contacts From Namesilo';
+$lang['Namesilo.tab_manage_contacts.field_sync'] = 'Pull Contacts From Registry';
 $lang['Namesilo.tab_manage_contacts.field_submit'] = 'Set Default Registrant Contact';
 
 

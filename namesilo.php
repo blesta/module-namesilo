@@ -98,7 +98,6 @@ class Namesilo extends RegistrarModule
                     Loader::loadComponents($this, ['Record']);
                 }
 
-
                 $module_rows = $this->getRows();
                 foreach($module_rows as $module_row) {
                     $api = $this->getApi($module_row->meta->user, $module_row->meta->key, $module_row->meta->sandbox == 'true');
@@ -109,21 +108,25 @@ class Namesilo extends RegistrarModule
         }
     }
     
-    private function setContactsFromServices($domains, $module_row, $client_id = null)
+    private function setContactsFromServices($domains_api, $module_row, $client_id = null, $domain_clients = [])
     {
-        $this->Record->from('services')->
-            select(['services.*', 'service_fields.value' => 'domain'])->
-            on('service_fields.key', '=', 'domain')->
-            innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-            where('services.module_row_id', '=', $module_row->id)->
-            where('services.status', '=', 'active');
-        if ($client_id) {
-            $this->Record->where('services.client_id', '=', $client_id);
+        if (empty($domain_clients)) {
+            $this->Record->from('services')->
+                select(['services.*', 'service_fields.value' => 'domain'])->
+                on('service_fields.key', '=', 'domain')->
+                innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
+                where('services.module_row_id', '=', $module_row->id)->
+                where('services.status', '=', 'active');
+            if ($client_id) {
+                $this->Record->where('services.client_id', '=', $client_id);
+            }
+            $services = $this->Record->fetchAll();
+            foreach ($services as $service) {
+                $domain_clients[$service->domain] = $client_id;
+            }
         }
-        $services = $this->Record->fetchAll();
         
-        
-        $contactsInfo = $domains->getContacts([]);
+        $contactsInfo = $domains_api->getContacts([]);
         if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
             $this->processResponse($this->api, $contactsInfo);
         }
@@ -139,8 +142,8 @@ class Namesilo extends RegistrarModule
         }
         
         $client_contacts = [];
-        foreach ($services as $service) {
-            $domainInfo = $domains->getDomainInfo(['domain' => $service->domain]);
+        foreach ($domain_clients as $domain => $client_id) {
+            $domainInfo = $domains_api->getDomainInfo(['domain' => $domain]);
             if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
                 $this->processResponse($this->api, $domainInfo);
 
@@ -148,25 +151,25 @@ class Namesilo extends RegistrarModule
             }
 
             $contact_ids = $domainInfo->response(true)['contact_ids'];
-            if (!isset($client_contacts[$service->client_id])) {
-                $client_contacts[$service->client_id] = [];
+            if (!isset($client_contacts[$client_id])) {
+                $client_contacts[$client_id] = [];
             }
             foreach ($contact_ids as $contact_id) {
-                $client_contacts[$service->client_id][$contact_id] = $contacts[$contact_id];
+                $client_contacts[$client_id][$contact_id] = $contacts[$contact_id];
             }
         }
 
-        foreach ($client_contacts as $client_id => $contacts) {
+        foreach ($client_contacts as $contact_client_id => $contacts) {
             $this->Record->duplicate('module_id', '=', $module_row->module_id)->
                 duplicate('module_row_id', '=', $module_row->id)->
-                duplicate('client_id', '=', $client_id)->
+                duplicate('client_id', '=', $contact_client_id)->
                 duplicate('key', '=', 'contacts')->
                 insert(
                     'module_client_meta',
                     [
                         'module_id' => $module_row->module_id,
                         'module_row_id' => $module_row->id,
-                        'client_id' => $client_id,
+                        'client_id' => $contact_client_id,
                         'key' => 'contacts',
                         'value' => json_encode($contacts)
                     ]
@@ -548,6 +551,9 @@ class Namesilo extends RegistrarModule
                         return;
                     }
                 }
+
+                // Sync domain contacts for the current client
+                $this->setContactsFromServices($domains, $row, $client->id, [$vars['domain'] => $client->id]);
             }
         }
 
@@ -2300,14 +2306,26 @@ class Namesilo extends RegistrarModule
         if (!isset($this->ModuleClientMeta)) {
             Loader::loadModels($this, ['ModuleClientMeta']);
         }
+
+        if (!isset($this->Session)) {
+            Loader::loadModels($this, ['Session']);
+        }
+
         // Load the API command
         $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
         $module = $this->getModule();
+
+        // Fetch current client
+        $client_id = null;
+        if ($this->Session->read('blesta_client_id')) {
+            $client_id = (int) $this->Session->read('blesta_client_id');
+        }
 
         // Initialize variables
         $vars = new stdClass();
         $this->view = new View($view, 'default');
         $this->view->base_uri = $this->base_uri;
+
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
@@ -2321,7 +2339,7 @@ class Namesilo extends RegistrarModule
                 );
             } elseif (isset($post['pull_contacts'])) {
                 $module_row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
-                $this->setContactsFromServices($domains, $module_row);
+                $this->setContactsFromServices($domains, $module_row, $client_id);
             }
             
             $vars = (object) $post;
@@ -2348,11 +2366,6 @@ class Namesilo extends RegistrarModule
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
-    }
-    
-    private function addContactFromWhois($key, $contact, &$new_ids, &$delete_ids)
-    {
-        
     }
 
     /**

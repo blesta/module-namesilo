@@ -122,22 +122,7 @@ class Namesilo extends RegistrarModule
             }
             $services = $this->Record->fetchAll();
             foreach ($services as $service) {
-                $domain_clients[$service->domain] = $client_id;
-            }
-        }
-        
-        $contactsInfo = $domains_api->getContacts([]);
-        if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
-            $this->processResponse($this->api, $contactsInfo);
-        }
-        $contacts = [];
-        $contact_response = $contactsInfo->response();
-        if (isset($contact_response->contact)) {
-            $namesilo_contacts = is_array($contact_response->contact)
-                ? $contactsInfo->response()->contact
-                : [$contactsInfo->response()->contact];
-            foreach ($namesilo_contacts as $contact) {
-                $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
+                $domain_clients[$service->domain] = $service->client_id;
             }
         }
         
@@ -155,7 +140,12 @@ class Namesilo extends RegistrarModule
                 $client_contacts[$client_id] = [];
             }
             foreach ($contact_ids as $contact_id) {
-                $client_contacts[$client_id][$contact_id] = $contacts[$contact_id];
+                if (!isset($client_contacts[$client_id][$contact_id])) {
+                    $contactsInfo = $domains_api->getContacts([ 'contact_id' => $contact_id]);
+                    $contact = $contactsInfo->response()->contact;
+                    $client_contacts[$client_id][$contact_id] = $contact->first_name . ' ' . $contact->last_name ?? '';
+                    sleep(2);
+                }
             }
         }
 
@@ -484,9 +474,9 @@ class Namesilo extends RegistrarModule
                     $fields['payment_id'] = $row->meta->payment_id;
                 }
 
+                $domains = new NamesiloDomains($api);
                 // for .ca domains we need to create a special contact to use
                 if ($tld == '.ca') {
-                    $domains = new NamesiloDomains($api);
                     $response = $domains->addContacts($vars);
                     $this->processResponse($api, $response);
                     if ($this->Input->errors()) {
@@ -519,8 +509,6 @@ class Namesilo extends RegistrarModule
                     }
                 } else {
                     // Handle registration
-                    $domains = new NamesiloDomains($api);
-
                     $response = $domains->create($fields);
                     $this->processResponse($api, $response);
 

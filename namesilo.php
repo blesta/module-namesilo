@@ -2304,7 +2304,8 @@ class Namesilo extends RegistrarModule
         $module = $this->getModule();
 
         // Fetch current client
-        $client_id = null;
+        // set from service so admin side doesnt try to pull all services durring sync
+        $client_id = $service->client_id;
         if ($this->Session->read('blesta_client_id')) {
             $client_id = (int) $this->Session->read('blesta_client_id');
         }

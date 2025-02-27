@@ -62,6 +62,7 @@ class NamesiloApi
      * @var int http return code
      */
     public $httpcode;
+    public $logger;
 
     /**
      * Sets the connection details

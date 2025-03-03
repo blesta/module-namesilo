@@ -6,6 +6,11 @@ $lang['Namesilo.module_row'] = 'Account';
 $lang['Namesilo.module_row_plural'] = 'Accounts';
 
 
+// Cron tasks
+$lang['Namesilo.getCronTasks.pull_contacts_name'] = 'Pull Namesilo Contacts';
+$lang['Namesilo.getCronTasks.pull_contacts_desc'] = 'Pulls in contacts from namesilo and assiciates them with blesta clients.';
+
+
 // Module management
 $lang['Namesilo.add_module_row'] = 'Add Account';
 $lang['Namesilo.manage.module_rows_title'] = 'Accounts';

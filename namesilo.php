@@ -2248,7 +2248,6 @@ class Namesilo extends RegistrarModule
         if (!empty($post)) {
             $response = $domains->addContacts($post);
             $this->processResponse($this->api, $response);
-            var_dump($response);
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$response->response()->contact_id] = $post['fn'] . ' ' . $post['ln'];
                 $this->ModuleClientMeta->set(

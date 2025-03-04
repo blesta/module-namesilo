@@ -21,7 +21,7 @@ class Namesilo extends RegistrarModule
      * @var string Default module view path
      */
     private static $defaultModuleView;
-    
+
     private $api;
 
     /**
@@ -90,24 +90,229 @@ class Namesilo extends RegistrarModule
                     Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
                 );
             }
-            
-            // Upgrade to 3.4.0
-            if (version_compare($current_version, '3.4.0', '<')) {
-                
-                if (!isset($this->Record)) {
-                    Loader::loadComponents($this, ['Record']);
-                }
 
-                $module_rows = $this->getRows();
-                foreach($module_rows as $module_row) {
-                    $api = $this->getApi($module_row->meta->user, $module_row->meta->key, $module_row->meta->sandbox == 'true');
-                    $domains = new NamesiloDomains($api);
-                    $this->setContactsFromServices($domains, $module_row);
-                }
+            // Upgrade if possible
+            if (version_compare($current_version, '3.4.1', '<')) {
+                $this->addCronTasks($this->getCronTasks());
             }
         }
     }
-    
+    /**
+     * Performs any necessary cleanup actions
+     *
+     * @param int $module_id The ID of the module being uninstalled
+     * @param boolean $last_instance True if $module_id is the last instance across
+     *  all companies for this module, false otherwise
+     */
+    public function uninstall($module_id, $last_instance)
+    {
+        if (!isset($this->Record)) {
+            Loader::loadComponents($this, ['Record']);
+        }
+        Loader::loadModels($this, ['CronTasks']);
+
+        $cron_tasks = $this->getCronTasks();
+
+        if ($last_instance) {
+            // Remove the cron tasks
+            foreach ($cron_tasks as $task) {
+                $cron_task = $this->CronTasks->getByKey($task['key'], $task['dir'], $task['task_type']);
+                if ($cron_task) {
+                    $this->CronTasks->deleteTask($cron_task->id, $task['task_type'], $task['dir']);
+                }
+            }
+        }
+
+        // Remove individual cron task runs
+        foreach ($cron_tasks as $task) {
+            $cron_task_run = $this->CronTasks
+                ->getTaskRunByKey($task['key'], $task['dir'], false, $task['task_type']);
+            if ($cron_task_run) {
+                $this->CronTasks->deleteTaskRun($cron_task_run->task_run_id);
+            }
+        }
+    }
+
+
+    /**
+     * Runs the cron task identified by the key used to create the cron task
+     *
+     * @param string $key The key used to create the cron task
+     * @see CronTasks::add()
+     */
+    public function cron($key)
+    {
+        if ($key == 'pull_contacts') {
+            $this->synchronizeContacts();
+        }
+    }
+
+    /**
+     * Retrieves cron tasks available to this module along with their default values
+     *
+     * @return array A list of cron tasks
+     */
+    private function getCronTasks()
+    {
+        return [
+            [
+                'key' => 'pull_contacts',
+                'task_type' => 'module',
+                'dir' => 'namesilo',
+                'name' => Language::_('Namesilo.getCronTasks.pull_contacts_name', true),
+                'description' => Language::_('Namesilo.getCronTasks.pull_contacts_desc', true),
+                'type' => 'interval',
+                'type_value' => 10,
+                'enabled' => 1
+            ]
+        ];
+    }
+
+    /**
+     * Attempts to add new cron tasks for this module
+     *
+     * @param array $tasks A list of cron tasks to add
+     */
+    private function addCronTasks(array $tasks)
+    {
+        Loader::loadModels($this, ['CronTasks']);
+        foreach ($tasks as $task) {
+            $task_id = $this->CronTasks->add($task);
+
+            if (!$task_id) {
+                $cron_task = $this->CronTasks->getByKey($task['key'], $task['dir'], $task['task_type']);
+                if ($cron_task) {
+                    $task_id = $cron_task->id;
+                }
+            }
+
+            if ($task_id) {
+                $task_vars = ['enabled' => $task['enabled']];
+                if ($task['type'] === 'time') {
+                    $task_vars['time'] = $task['type_value'];
+                } else {
+                    $task_vars['interval'] = $task['type_value'];
+                }
+
+                $this->CronTasks->addTaskRun($task_id, $task_vars);
+            }
+        }
+    }
+
+    private function synchronizeContacts()
+    {
+        // Get all the namesilo module rows for this company
+        $module_rows = $this->Record->from('module_rows')->
+            select(['module_rows.*'])->
+            innerJoin('modules', 'modules.id', '=', 'module_rows.module_id', false)->
+            where('modules.company_id', '=', Configure::get('Blesta.company_id'))->
+            where('modules.class', '=', 'namesilo')->
+            fetchAll();
+
+        $remaining_batch_slots = 100;
+        foreach ($module_rows as $module_row) {
+            $remaining_batch_slots = $this->synchronizeContactsForModuleRow($module_row, $remaining_batch_slots);
+        }
+    }
+
+    private function synchronizeContactsForModuleRow($module_row, $remaining_batch_slots)
+    {
+        // Get all namesilo services for the module row
+        $services = $this->Record->from('services')->
+            select(['services.*', 'service_fields.value' => 'domain'])->
+            on('service_fields.key', '=', 'domain')->
+            innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
+            on('module_client_meta.key', '=', 'contacts',)->
+            on('module_client_meta.client_id', '=', 'services.client_id', false)->
+            leftJoin('module_client_meta', 'module_client_meta.module_row_id', '=', 'services.module_row_id', false)->
+            where('module_client_meta.value', '=', null)->
+            where('services.module_row_id', '=', $module_row->id ?? null)->
+            where('services.status', '=', 'active')->
+            fetchAll();
+
+        // Create a list of domains with their service and client ids
+        $client_domains = [];
+        foreach ($services as $service) {
+            if (empty($client_domains[$service->client_id])) {
+                $client_domains[$service->client_id] = [];
+            }
+
+            $client_domains[$service->client_id][] = $service->domain;
+        }
+
+        // Get a batch of 100 domains for which to fetch contacts
+        $queued_client_domains = [];
+        foreach ($client_domains as $client_id => $domains) {
+            if (!empty($queued_client_domains) && (count($queued_client_domains) + count($domains)) > $remaining_batch_slots) {
+                break;
+            }
+            $remaining_batch_slots -= count($domains);
+
+            $queued_client_domains[$client_id] = $domains;
+        }
+
+        $this->synchronizeContactsForDomains($queued_client_domains, $module_row);
+
+        return $remaining_batch_slots;
+    }
+
+    private function synchronizeContactsForDomains($queued_client_domains, $module_row)
+    {
+        // Get the contact info for each domain
+        $domains_api = $this->loadApiCommand('Domains', $module_row->id);
+        $client_contacts = [];
+        foreach ($queued_client_domains as $client_id => $queued_domains) {
+            foreach ($queued_domains as $queued_domain) {
+                $domainInfo = $domains_api->getDomainInfo(['domain' => $queued_domain]);
+                if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+                    $this->processResponse($this->api, $domainInfo);
+
+                    continue;
+                }
+
+                $domain_response = $domainInfo->response(true);
+                $contact_ids = $domain_response['contact_ids'];
+                if (!isset($client_contacts[$client_id])) {
+                    $client_contacts[$client_id] = [];
+                }
+
+                foreach ($contact_ids as $contact_id) {
+                    if (array_key_exists($contact_id, $client_contacts[$client_id])) {
+                        continue;
+                    }
+
+                    $contactsInfo = $domains_api->getContacts(['contact_id' => $contact_id]);
+                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+                        $this->processResponse($this->api, $contactsInfo);
+
+                        continue;
+                    }
+
+                    $contact_response = $contactsInfo->response();
+                    $client_contacts[$client_id][$contact_id] = $contact_response->contact->first_name
+                        . ' ' . $contact_response->contact->last_name;
+                }
+            }
+        }
+
+        foreach ($client_contacts as $contact_client_id => $contacts) {
+            $this->Record->duplicate('module_id', '=', $module_row->module_id)->
+                duplicate('module_row_id', '=', $module_row->id)->
+                duplicate('client_id', '=', $contact_client_id)->
+                duplicate('key', '=', 'contacts')->
+                insert(
+                    'module_client_meta',
+                    [
+                        'module_id' => $module_row->module_id,
+                        'module_row_id' => $module_row->id,
+                        'client_id' => $contact_client_id,
+                        'key' => 'contacts',
+                        'value' => json_encode($contacts)
+                    ]
+                );
+        }
+    }
+
     private function setContactsFromServices($domains_api, $module_row, $client_id = null, $domain_clients = [])
     {
         if (empty($domain_clients)) {
@@ -125,7 +330,7 @@ class Namesilo extends RegistrarModule
                 $domain_clients[$service->domain] = $service->client_id;
             }
         }
-        
+
         $client_contacts = [];
         foreach ($domain_clients as $domain => $client_id) {
             $domainInfo = $domains_api->getDomainInfo(['domain' => $domain]);
@@ -225,7 +430,7 @@ class Namesilo extends RegistrarModule
 
         $response = $dns->setCustom($args);
         $this->processResponse($api, $response);
-        
+
         return self::$codes[$response->status()][1] == 'success';
     }
 
@@ -425,7 +630,7 @@ class Namesilo extends RegistrarModule
                 if (!isset($this->ModuleClientMeta)) {
                     Loader::loadModels($this, ['ModuleClientMeta']);
                 }
-                
+
                 $whois_fields = Configure::get('Namesilo.whois_fields');
 
                 // Set all whois info from client ($vars['client_id'])
@@ -463,7 +668,7 @@ class Namesilo extends RegistrarModule
                     $row->module_id,
                     $row->id
                 );
-                
+
                 if (isset($default_meta->value)) {
                     $fields['contact_id'] = $default_meta->value;
                 }
@@ -957,7 +1162,7 @@ class Namesilo extends RegistrarModule
         if (empty($vars)) {
             $vars = (array) $module_row->meta;
         }
-        
+
         $this->view->set('vars', (object) $vars);
 
         return $this->view->fetch();
@@ -1211,7 +1416,7 @@ class Namesilo extends RegistrarModule
                             $fields,
                             (array) Configure::get('Namesilo.domain_fields' . $tld)
                         );
-        
+
                         // .ca domains can't have traditional whois privacy
                         if ($tld == '.ca') {
                             unset($fields['private']);
@@ -1660,7 +1865,7 @@ class Namesilo extends RegistrarModule
     {
         return $this->manageWhois('tab_client_whois', $package, $service, $get, $post, $files);
     }
-    
+
     /**
      * Admin Manage Contacts tab
      *
@@ -1675,7 +1880,7 @@ class Namesilo extends RegistrarModule
     {
         return $this->manageManageContacts('tab_manage_contacts', $package, $service, $get, $post, $files);
     }
-    
+
     /**
      * Client Manage Contacts tab
      *
@@ -1986,7 +2191,7 @@ class Namesilo extends RegistrarModule
         Loader::loadHelpers($this, ['Form', 'Html']);
         $sections = ['registrant', 'administrative', 'technical', 'billing'];
         $fields = $this->serviceFieldsToObject($service->fields);
-        
+
         // Get the current contact IDs
         if (!($contact_ids = $this->getContactsByDomain($domains, $fields->domain))) {
             return false;
@@ -1995,7 +2200,7 @@ class Namesilo extends RegistrarModule
         if (!empty($post)) {
             $post['domain'] = $fields->domain;
             $domains->setContacts($post);
-            
+
             $vars = (object) $post;
         } else {
             $vars = (object) $contact_ids;
@@ -2007,7 +2212,7 @@ class Namesilo extends RegistrarModule
         if ($contact_meta) {
             $contacts = json_decode($contact_meta->value, true);
         }
-        
+
         $this->view->set('vars', $vars);
         $this->view->set('contact_ids', $contacts);
         $this->view->set('sections', $sections);
@@ -2015,10 +2220,10 @@ class Namesilo extends RegistrarModule
 
         return $this->view->fetch();
     }
-    
+
     /**
      * Gets all the contact IDs for the given domain
-     * 
+     *
      * @param NamesiloDomains $domains_command The API command object to use for the request
      * @param string $domain The domain for which to fetch contacts
      * @return boolean
@@ -2032,9 +2237,9 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
-        return $domainInfo->response(true)['contact_ids'];        
+        return $domainInfo->response(true)['contact_ids'];
     }
-    
+
     /**
      * Handle managing contact information
      *
@@ -2061,13 +2266,13 @@ class Namesilo extends RegistrarModule
                 return $this->handleContactAdd($view, $package, $service, $get, $post);
             }
         }
-        
+
         if (($get['action'] ?? '') == 'delete') {
             $this->handleContactDelete($package, $service, $get, $post);
         }
         return $this->handleContactList($view, $package, $service, $get, $post);
     }
-    
+
     /**
      * Handle updating contact information
      *
@@ -2089,12 +2294,12 @@ class Namesilo extends RegistrarModule
         if ($contact_meta) {
             $contacts = json_decode($contact_meta->value, true);
         }
-        
+
         // Make sure a user only edits their own contact
         if (!array_key_exists($post['contact_id'] ?? $get['contact_id'], $contacts)) {
             return $this->handleContactList($view, $package, $service, $get, $post);
         }
-        
+
         // Load the API command
         $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
 
@@ -2106,12 +2311,12 @@ class Namesilo extends RegistrarModule
         $this->view->base_uri = $this->base_uri;
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
-        
+
         $response = $domains->getContacts(['contact_id' => $contact_id]);
         if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
             return false;
         }
-        
+
         if (!empty($post)) {
             $response = $domains->updateContacts($post);
             $this->processResponse($this->api, $response);
@@ -2124,7 +2329,7 @@ class Namesilo extends RegistrarModule
                     [['key' => 'contacts', 'value' => json_encode($contacts)]]
                 );
             }
-            
+
             $vars = (object) $post;
         } else {
             $vars = $this->formatContact($response->response()->contact, $whois_fields);
@@ -2135,7 +2340,7 @@ class Namesilo extends RegistrarModule
             $key = $value['rp'];
             $all_fields[$key] = $value;
         }
-        
+
         $this->view->set('vars', $vars);
         $this->view->set('contact_id', $contact_id);
         $this->view->set('service', $service);
@@ -2144,7 +2349,7 @@ class Namesilo extends RegistrarModule
 
         return $this->view->fetch();
     }
-    
+
     /**
      * Handle deleting contact information
      *
@@ -2165,12 +2370,12 @@ class Namesilo extends RegistrarModule
         if ($contact_meta) {
             $contacts = json_decode($contact_meta->value, true);
         }
-        
+
         // Make sure a user only edits their own contact
         if (!array_key_exists($post['contact_id'] ?? $get['contact_id'], $contacts)) {
             return;
         }
-        
+
         // Load the API command
         $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
         $contact_id = $post['contact_id'] ?? $get['contact_id'];
@@ -2178,7 +2383,7 @@ class Namesilo extends RegistrarModule
         if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
             return false;
         }
-        
+
         $response = $domains->deleteContacts(['contact_id' => $contact_id]);
         $this->processResponse($this->api, $response);
         if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
@@ -2189,7 +2394,7 @@ class Namesilo extends RegistrarModule
                 $service->module_row_id,
                 [['key' => 'contacts', 'value' => json_encode($contacts)]]
             );
-            
+
             $this->setMessage(
                 'success',
                 Language::_(
@@ -2199,7 +2404,7 @@ class Namesilo extends RegistrarModule
             );
         }
     }
-    
+
     /**
      * Handle updating contact information
      *
@@ -2221,7 +2426,7 @@ class Namesilo extends RegistrarModule
         if ($contact_meta) {
             $contacts = json_decode($contact_meta->value, true);
         }
-        
+
         // Load the API command
         $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
 
@@ -2232,11 +2437,11 @@ class Namesilo extends RegistrarModule
         $this->view->base_uri = $this->base_uri;
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
-        
+
         if (!empty($post)) {
             $response = $domains->addContacts($post);
             $this->processResponse($this->api, $response);
-            var_dump($response);
+
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$response->response()->contact_id] = $post['fn'] . ' ' . $post['ln'];
                 $this->ModuleClientMeta->set(
@@ -2245,10 +2450,10 @@ class Namesilo extends RegistrarModule
                     $service->module_row_id,
                     [['key' => 'contacts', 'value' => json_encode($contacts)]]
                 );
-                
+
                 return $this->handleContactList($view, $package, $service, $get);
             }
-            
+
             $vars = (object) $post;
         }
 
@@ -2257,14 +2462,14 @@ class Namesilo extends RegistrarModule
             $key = $value['rp'];
             $all_fields[$key] = $value;
         }
-        
+
         $this->view->set('vars', $vars);
         $this->view->set('fields', $this->arrayToModuleFields($all_fields, null, $vars)->getFields());
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
     }
-    
+
     private function formatContact($contact, $whois_fields)
     {
         $vars = ['contact_id' => $contact->contact_id];
@@ -2272,13 +2477,13 @@ class Namesilo extends RegistrarModule
             if (!array_key_exists($contact_field, $whois_fields) || !is_string($value)) {
                 continue;
             }
-            
+
             $vars[$whois_fields[$contact_field]['rp']] = $value;
-        }   
-        
+        }
+
         return (object) $vars;
     }
-    
+
     /**
      * Handle listing contact information
      *
@@ -2290,7 +2495,7 @@ class Namesilo extends RegistrarModule
      * @return string The string representing the contents of this tab
      */
     private function handleContactList($view, $package, $service, array $get = null, array $post = []) {
-        
+
         if (!isset($this->ModuleClientMeta)) {
             Loader::loadModels($this, ['ModuleClientMeta']);
         }
@@ -2304,7 +2509,6 @@ class Namesilo extends RegistrarModule
         $module = $this->getModule();
 
         // Fetch current client
-        // set from service so admin side doesnt try to pull all services durring sync
         $client_id = $service->client_id;
         if ($this->Session->read('blesta_client_id')) {
             $client_id = (int) $this->Session->read('blesta_client_id');
@@ -2330,7 +2534,7 @@ class Namesilo extends RegistrarModule
                 $module_row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
                 $this->setContactsFromServices($domains, $module_row, $client_id);
             }
-            
+
             $vars = (object) $post;
         } else {
             $default_meta = $this->ModuleClientMeta->get(
@@ -2339,7 +2543,7 @@ class Namesilo extends RegistrarModule
                 $module->id,
                 $service->module_row_id
             );
-            
+
             $vars = (object) ['default_contact_id' => $default_meta->value ?? null];
         }
 
@@ -2348,7 +2552,7 @@ class Namesilo extends RegistrarModule
         if ($contact_meta) {
             $contacts = json_decode($contact_meta->value, true);
         }
-        
+
         $this->view->set('vars', $vars);
         $this->view->set('contacts', $contacts);
         $this->view->set('service', $service);
@@ -3311,17 +3515,17 @@ class Namesilo extends RegistrarModule
 
         return true;
     }
-    
+
     /**
      * Loads the given API command class
-     * 
+     *
      * @param string $command The name of the command to load
      * @param int $module_row_id The ID of the module row which provides credentials for initializing the API
      * @return mixed The API command object
      */
     private function loadApiCommand($command, $module_row_id) {
         $full_command_class = 'Namesilo' . $command;
-        
+
         if (!$this->api) {
             $row = $this->getModuleRow($module_row_id);
             $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
@@ -3350,7 +3554,7 @@ class Namesilo extends RegistrarModule
                 $sandbox = $row->meta->sandbox;
             }
         }
-        
+
         $this->api = new NamesiloApi($user, $key, $sandbox, $username, $batch);
         return $this->api;
     }

@@ -199,6 +199,13 @@ class Namesilo extends RegistrarModule
         }
     }
 
+    /**
+     * Pulls in contacts from Namesilo and assigns them to the appropriate Blesta user
+     *
+     * @param stdClass $module_row The module row for which to pull in domain contacts
+     * @param int $remaining_batch_slots The number of batch slots remaining
+     * @return int The number of batch slots remaining
+     */
     private function synchronizeContacts()
     {
         // Get all the namesilo module rows for this company
@@ -215,10 +222,19 @@ class Namesilo extends RegistrarModule
         }
     }
 
-    private function synchronizeContactsForModuleRow($module_row, $remaining_batch_slots)
+    /**
+     * Pulls in contacts from Namesilo using the given module row and assigns
+     * them to the appropriate blesta user
+     *
+     * @param stdClass $module_row The module row for which to pull in domain contacts
+     * @param int $remaining_batch_slots The number of batch slots remaining
+     * @param int $client_id Submit to only sync for the given client
+     * @return int The number of batch slots remaining
+     */
+    private function synchronizeContactsForModuleRow($module_row, $remaining_batch_slots = null, $client_id = null)
     {
-        // Get all namesilo services for the module row
-        $services = $this->Record->from('services')->
+        // Get all Namesilo services for the module row
+        $record = $this->Record->from('services')->
             select(['services.*', 'service_fields.value' => 'domain'])->
             on('service_fields.key', '=', 'domain')->
             innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
@@ -227,8 +243,14 @@ class Namesilo extends RegistrarModule
             leftJoin('module_client_meta', 'module_client_meta.module_row_id', '=', 'services.module_row_id', false)->
             where('module_client_meta.value', '=', null)->
             where('services.module_row_id', '=', $module_row->id ?? null)->
-            where('services.status', '=', 'active')->
-            fetchAll();
+            where('services.status', '=', 'active');
+
+        // Filter client ID
+        if ($client_id) {
+            $record->where('services.client_id', '=', $client_id);
+        }
+
+        $services = $record->fetchAll();
 
         // Create a list of domains with their service and client ids
         $client_domains = [];
@@ -243,7 +265,10 @@ class Namesilo extends RegistrarModule
         // Get a batch of 100 domains for which to fetch contacts
         $queued_client_domains = [];
         foreach ($client_domains as $client_id => $domains) {
-            if (!empty($queued_client_domains) && (count($queued_client_domains) + count($domains)) > $remaining_batch_slots) {
+            if ($remaining_batch_slots
+                && !empty($queued_client_domains)
+                && (count($queued_client_domains) + count($domains)) > $remaining_batch_slots
+            ) {
                 break;
             }
             $remaining_batch_slots -= count($domains);
@@ -256,6 +281,13 @@ class Namesilo extends RegistrarModule
         return $remaining_batch_slots;
     }
 
+    /**
+     * Pulls in contacts from Namesilo and assigns them to the appropriate blesta user
+     *
+     * @param array $queued_client_domains A list clients their domains in the queue to pull in contacts
+     * @param stdClass $module_row The module row for which to pull in domain contacts
+     * @return int The number of batch slots remaining
+     */
     private function synchronizeContactsForDomains($queued_client_domains, $module_row)
     {
         // Get the contact info for each domain
@@ -263,6 +295,7 @@ class Namesilo extends RegistrarModule
         $client_contacts = [];
         foreach ($queued_client_domains as $client_id => $queued_domains) {
             foreach ($queued_domains as $queued_domain) {
+                // Fetch domain info from Namesilo
                 $domainInfo = $domains_api->getDomainInfo(['domain' => $queued_domain]);
                 if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
                     $this->processResponse($this->api, $domainInfo);
@@ -270,20 +303,22 @@ class Namesilo extends RegistrarModule
                     continue;
                 }
 
+                // Get the contact ids from the domain
                 $domain_response = $domainInfo->response(true);
                 $contact_ids = $domain_response['contact_ids'];
                 if (!isset($client_contacts[$client_id])) {
                     $client_contacts[$client_id] = [];
                 }
 
+                // Get the name for each contact from Namesilo
                 foreach ($contact_ids as $contact_id) {
                     if (array_key_exists($contact_id, $client_contacts[$client_id])) {
                         continue;
                     }
 
                     $contactsInfo = $domains_api->getContacts(['contact_id' => $contact_id]);
-                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
                         $this->processResponse($this->api, $contactsInfo);
+                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
 
                         continue;
                     }
@@ -295,75 +330,7 @@ class Namesilo extends RegistrarModule
             }
         }
 
-        foreach ($client_contacts as $contact_client_id => $contacts) {
-            $this->Record->duplicate('module_id', '=', $module_row->module_id)->
-                duplicate('module_row_id', '=', $module_row->id)->
-                duplicate('client_id', '=', $contact_client_id)->
-                duplicate('key', '=', 'contacts')->
-                insert(
-                    'module_client_meta',
-                    [
-                        'module_id' => $module_row->module_id,
-                        'module_row_id' => $module_row->id,
-                        'client_id' => $contact_client_id,
-                        'key' => 'contacts',
-                        'value' => json_encode($contacts)
-                    ]
-                );
-        }
-    }
-
-    private function setContactsFromServices($domains_api, $module_row, $client_id = null, $domain_clients = [])
-    {
-        if (empty($domain_clients)) {
-            $this->Record->from('services')->
-                select(['services.*', 'service_fields.value' => 'domain'])->
-                on('service_fields.key', '=', 'domain')->
-                innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-                where('services.module_row_id', '=', $module_row->id)->
-                where('services.status', '=', 'active');
-            if ($client_id) {
-                $this->Record->where('services.client_id', '=', $client_id);
-            }
-            $services = $this->Record->fetchAll();
-            foreach ($services as $service) {
-                $domain_clients[$service->domain] = $client_id;
-            }
-        }
-
-        $contactsInfo = $domains_api->getContacts([]);
-        if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
-            $this->processResponse($this->api, $contactsInfo);
-        }
-        $contacts = [];
-        $contact_response = $contactsInfo->response();
-        if (isset($contact_response->contact)) {
-            $namesilo_contacts = is_array($contact_response->contact)
-                ? $contactsInfo->response()->contact
-                : [$contactsInfo->response()->contact];
-            foreach ($namesilo_contacts as $contact) {
-                $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
-            }
-        }
-
-        $client_contacts = [];
-        foreach ($domain_clients as $domain => $client_id) {
-            $domainInfo = $domains_api->getDomainInfo(['domain' => $domain]);
-            if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-                $this->processResponse($this->api, $domainInfo);
-
-                continue;
-            }
-
-            $contact_ids = $domainInfo->response(true)['contact_ids'];
-            if (!isset($client_contacts[$client_id])) {
-                $client_contacts[$client_id] = [];
-            }
-            foreach ($contact_ids as $contact_id) {
-                $client_contacts[$client_id][$contact_id] = $contacts[$contact_id];
-            }
-        }
-
+        // For each client store a mapping of namesilo contact ids to names
         foreach ($client_contacts as $contact_client_id => $contacts) {
             $this->Record->duplicate('module_id', '=', $module_row->module_id)->
                 duplicate('module_row_id', '=', $module_row->id)->
@@ -758,7 +725,7 @@ class Namesilo extends RegistrarModule
                 }
 
                 // Sync domain contacts for the current client
-                $this->setContactsFromServices($domains, $row, $client->id, [$vars['domain'] => $client->id]);
+                $this->synchronizeContactsForModuleRow($row, null, $client->id);
             }
         }
 
@@ -2544,7 +2511,7 @@ class Namesilo extends RegistrarModule
                 );
             } elseif (isset($post['pull_contacts'])) {
                 $module_row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
-                $this->setContactsFromServices($domains, $module_row, $client_id);
+                $this->synchronizeContactsForModuleRow($module_row, null, $client_id);
             }
 
             $vars = (object) $post;

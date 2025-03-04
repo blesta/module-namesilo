@@ -231,7 +231,7 @@ class Namesilo extends RegistrarModule
      * @param int $client_id Submit to only sync for the given client
      * @return int The number of batch slots remaining
      */
-    private function synchronizeContactsForModuleRow($module_row, $remaining_batch_slots = null, $client_id = null)
+    private function synchronizeContactsForModuleRow($module_row, $remaining_batch_slots = null, $client_id = null, $additional_domains = [])
     {
         // Get all Namesilo services for the module row
         $record = $this->Record->from('services')->
@@ -273,7 +273,11 @@ class Namesilo extends RegistrarModule
             }
             $remaining_batch_slots -= count($domains);
 
-            $queued_client_domains[$client_id] = $domains;
+            $queued_client_domains[$client_id] = array_merge($domains, $additional_domains[$client_id] ?? []);
+        }
+
+        foreach ($additional_domains as $client_id => $additional_domain) {
+            $queued_client_domains[$client_id] = array_merge($queued_client_domains[$client_id] ?? [], $additional_domain);
         }
 
         $this->synchronizeContactsForDomains($queued_client_domains, $module_row);
@@ -725,7 +729,7 @@ class Namesilo extends RegistrarModule
                 }
 
                 // Sync domain contacts for the current client
-                $this->synchronizeContactsForModuleRow($row, null, $client->id);
+                $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
             }
         }
 

@@ -265,7 +265,7 @@ class Namesilo extends RegistrarModule
         // Get a batch of 100 domains for which to fetch contacts
         $queued_client_domains = [];
         foreach ($client_domains as $client_id => $domains) {
-            if ($remaining_batch_slots
+            if (!is_null($remaining_batch_slots)
                 && !empty($queued_client_domains)
                 && (count($queued_client_domains) + count($domains)) > $remaining_batch_slots
             ) {
@@ -2420,7 +2420,6 @@ class Namesilo extends RegistrarModule
         if (!empty($post)) {
             $response = $domains->addContacts($post);
             $this->processResponse($this->api, $response);
-            var_dump($response);
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$response->response()->contact_id] = $post['fn'] . ' ' . $post['ln'];
                 $this->ModuleClientMeta->set(

@@ -23,6 +23,7 @@ class Namesilo extends RegistrarModule
     private static $defaultModuleView;
 
     private $api;
+    public $logger;
 
     /**
      * Initializes the module
@@ -90,75 +91,250 @@ class Namesilo extends RegistrarModule
                     Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
                 );
             }
+            // Upgrade if possible
+            if (version_compare($current_version, '3.4.1', '<')) {
+                $this->addCronTasks($this->getCronTasks());
+            }
+        }
+    }
+    /**
+     * Performs any necessary cleanup actions
+     *
+     * @param int $module_id The ID of the module being uninstalled
+     * @param boolean $last_instance True if $module_id is the last instance across
+     *  all companies for this module, false otherwise
+     */
+    public function uninstall($module_id, $last_instance)
+    {
+        if (!isset($this->Record)) {
+            Loader::loadComponents($this, ['Record']);
+        }
+        Loader::loadModels($this, ['CronTasks']);
 
-            // Upgrade to 3.4.0
-            if (version_compare($current_version, '3.4.0', '<')) {
+        $cron_tasks = $this->getCronTasks();
 
-                if (!isset($this->Record)) {
-                    Loader::loadComponents($this, ['Record']);
+        if ($last_instance) {
+            // Remove the cron tasks
+            foreach ($cron_tasks as $task) {
+                $cron_task = $this->CronTasks->getByKey($task['key'], $task['dir'], $task['task_type']);
+                if ($cron_task) {
+                    $this->CronTasks->deleteTask($cron_task->id, $task['task_type'], $task['dir']);
                 }
+            }
+        }
 
-                $module_rows = $this->getRows();
-                foreach($module_rows as $module_row) {
-                    $api = $this->getApi($module_row->meta->user, $module_row->meta->key, $module_row->meta->sandbox == 'true');
-                    $domains = new NamesiloDomains($api);
-                    $this->setContactsFromServices($domains, $module_row);
-                }
+        // Remove individual cron task runs
+        foreach ($cron_tasks as $task) {
+            $cron_task_run = $this->CronTasks
+                ->getTaskRunByKey($task['key'], $task['dir'], false, $task['task_type']);
+            if ($cron_task_run) {
+                $this->CronTasks->deleteTaskRun($cron_task_run->task_run_id);
             }
         }
     }
 
-    private function setContactsFromServices($domains_api, $module_row, $client_id = null, $domain_clients = [])
+
+    /**
+     * Runs the cron task identified by the key used to create the cron task
+     *
+     * @param string $key The key used to create the cron task
+     * @see CronTasks::add()
+     */
+    public function cron($key)
     {
-        if (empty($domain_clients)) {
-            $this->Record->from('services')->
-                select(['services.*', 'service_fields.value' => 'domain'])->
-                on('service_fields.key', '=', 'domain')->
-                innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-                where('services.module_row_id', '=', $module_row->id)->
-                where('services.status', '=', 'active');
-            if ($client_id) {
-                $this->Record->where('services.client_id', '=', $client_id);
+        if ($key == 'pull_contacts') {
+            $this->synchronizeContacts();
+        }
+    }
+
+    /**
+     * Retrieves cron tasks available to this module along with their default values
+     *
+     * @return array A list of cron tasks
+     */
+    private function getCronTasks()
+    {
+        return [
+            [
+                'key' => 'pull_contacts',
+                'task_type' => 'module',
+                'dir' => 'namesilo',
+                'name' => Language::_('Namesilo.getCronTasks.pull_contacts_name', true),
+                'description' => Language::_('Namesilo.getCronTasks.pull_contacts_desc', true),
+                'type' => 'interval',
+                'type_value' => 10,
+                'enabled' => 1
+            ]
+        ];
+    }
+
+    /**
+     * Attempts to add new cron tasks for this module
+     *
+     * @param array $tasks A list of cron tasks to add
+     */
+    private function addCronTasks(array $tasks)
+    {
+        Loader::loadModels($this, ['CronTasks']);
+        foreach ($tasks as $task) {
+            $task_id = $this->CronTasks->add($task);
+
+            if (!$task_id) {
+                $cron_task = $this->CronTasks->getByKey($task['key'], $task['dir'], $task['task_type']);
+                if ($cron_task) {
+                    $task_id = $cron_task->id;
+                }
             }
-            $services = $this->Record->fetchAll();
-            foreach ($services as $service) {
-                $domain_clients[$service->domain] = $client_id;
+
+            if ($task_id) {
+                $task_vars = ['enabled' => $task['enabled']];
+                if ($task['type'] === 'time') {
+                    $task_vars['time'] = $task['type_value'];
+                } else {
+                    $task_vars['interval'] = $task['type_value'];
+                }
+
+                $this->CronTasks->addTaskRun($task_id, $task_vars);
             }
+        }
+    }
+
+    /**
+     * Pulls in contacts from Namesilo and assigns them to the appropriate Blesta user
+     *
+     * @param stdClass $module_row The module row for which to pull in domain contacts
+     * @param int $remaining_batch_slots The number of batch slots remaining
+     * @return int The number of batch slots remaining
+     */
+    private function synchronizeContacts()
+    {
+        // Get all the namesilo module rows for this company
+        $module_rows = $this->Record->from('module_rows')->
+            select(['module_rows.*'])->
+            innerJoin('modules', 'modules.id', '=', 'module_rows.module_id', false)->
+            where('modules.company_id', '=', Configure::get('Blesta.company_id'))->
+            where('modules.class', '=', 'namesilo')->
+            fetchAll();
+
+        $remaining_batch_slots = 100;
+        foreach ($module_rows as $module_row) {
+            $remaining_batch_slots = $this->synchronizeContactsForModuleRow($module_row, $remaining_batch_slots);
+        }
+    }
+
+    /**
+     * Pulls in contacts from Namesilo using the given module row and assigns
+     * them to the appropriate blesta user
+     *
+     * @param stdClass $module_row The module row for which to pull in domain contacts
+     * @param int $remaining_batch_slots The number of batch slots remaining
+     * @param int $client_id Submit to only sync for the given client
+     * @return int The number of batch slots remaining
+     */
+    private function synchronizeContactsForModuleRow($module_row, $remaining_batch_slots = null, $client_id = null, $additional_domains = [])
+    {
+        // Get all Namesilo services for the module row
+        $record = $this->Record->from('services')->
+            select(['services.*', 'service_fields.value' => 'domain'])->
+            on('service_fields.key', '=', 'domain')->
+            innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
+            on('module_client_meta.key', '=', 'contacts',)->
+            on('module_client_meta.client_id', '=', 'services.client_id', false)->
+            leftJoin('module_client_meta', 'module_client_meta.module_row_id', '=', 'services.module_row_id', false)->
+            where('module_client_meta.value', '=', null)->
+            where('services.module_row_id', '=', $module_row->id ?? null)->
+            where('services.status', '=', 'active');
+
+        // Filter client ID
+        if ($client_id) {
+            $record->where('services.client_id', '=', $client_id);
         }
 
-        $contactsInfo = $domains_api->getContacts([]);
-        if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
-            $this->processResponse($this->api, $contactsInfo);
-        }
-        $contacts = [];
-        $contact_response = $contactsInfo->response();
-        if (isset($contact_response->contact)) {
-            $namesilo_contacts = is_array($contact_response->contact)
-                ? $contactsInfo->response()->contact
-                : [$contactsInfo->response()->contact];
-            foreach ($namesilo_contacts as $contact) {
-                $contacts[$contact->contact_id] = $contact->first_name . ' ' . $contact->last_name;
+        $services = $record->fetchAll();
+
+        // Create a list of domains with their service and client ids
+        $client_domains = [];
+        foreach ($services as $service) {
+            if (empty($client_domains[$service->client_id])) {
+                $client_domains[$service->client_id] = [];
             }
+
+            $client_domains[$service->client_id][] = $service->domain;
         }
 
+        // Get a batch of 100 domains for which to fetch contacts
+        $queued_client_domains = [];
+        foreach ($client_domains as $client_id => $domains) {
+            if (!is_null($remaining_batch_slots)
+                && !empty($queued_client_domains)
+                && (count($queued_client_domains) + count($domains)) > $remaining_batch_slots
+            ) {
+                break;
+            }
+            $remaining_batch_slots -= count($domains);
+
+            $queued_client_domains[$client_id] = array_merge($domains, $additional_domains[$client_id] ?? []);
+        }
+
+        foreach ($additional_domains as $client_id => $additional_domain) {
+            $queued_client_domains[$client_id] = array_merge($queued_client_domains[$client_id] ?? [], $additional_domain);
+        }
+
+        $this->synchronizeContactsForDomains($queued_client_domains, $module_row);
+
+        return $remaining_batch_slots;
+    }
+
+    /**
+     * Pulls in contacts from Namesilo and assigns them to the appropriate blesta user
+     *
+     * @param array $queued_client_domains A list clients their domains in the queue to pull in contacts
+     * @param stdClass $module_row The module row for which to pull in domain contacts
+     * @return int The number of batch slots remaining
+     */
+    private function synchronizeContactsForDomains($queued_client_domains, $module_row)
+    {
+        // Get the contact info for each domain
+        $domains_api = $this->loadApiCommand('Domains', $module_row->id, true);
         $client_contacts = [];
-        foreach ($domain_clients as $domain => $client_id) {
-            $domainInfo = $domains_api->getDomainInfo(['domain' => $domain]);
-            if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
-                $this->processResponse($this->api, $domainInfo);
+        foreach ($queued_client_domains as $client_id => $queued_domains) {
+            foreach ($queued_domains as $queued_domain) {
+                // Fetch domain info from Namesilo
+                $domainInfo = $domains_api->getDomainInfo(['domain' => $queued_domain]);
+                if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+                    $this->processResponse($this->api, $domainInfo);
 
-                continue;
-            }
+                    continue;
+                }
 
-            $contact_ids = $domainInfo->response(true)['contact_ids'];
-            if (!isset($client_contacts[$client_id])) {
-                $client_contacts[$client_id] = [];
-            }
-            foreach ($contact_ids as $contact_id) {
-                $client_contacts[$client_id][$contact_id] = $contacts[$contact_id];
+                // Get the contact ids from the domain
+                $domain_response = $domainInfo->response(true);
+                $contact_ids = $domain_response['contact_ids'];
+                if (!isset($client_contacts[$client_id])) {
+                    $client_contacts[$client_id] = [];
+                }
+
+                // Get the name for each contact from Namesilo
+                foreach ($contact_ids as $contact_id) {
+                    if (array_key_exists($contact_id, $client_contacts[$client_id])) {
+                        continue;
+                    }
+
+                    $contactsInfo = $domains_api->getContacts(['contact_id' => $contact_id]);
+                        $this->processResponse($this->api, $contactsInfo);
+                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+
+                        continue;
+                    }
+
+                    $contact_response = $contactsInfo->response();
+                    $client_contacts[$client_id][$contact_id] = $contact_response->contact->first_name
+                        . ' ' . $contact_response->contact->last_name;
+                }
             }
         }
 
+        // For each client store a mapping of namesilo contact ids to names
         foreach ($client_contacts as $contact_client_id => $contacts) {
             $this->Record->duplicate('module_id', '=', $module_row->module_id)->
                 duplicate('module_row_id', '=', $module_row->id)->
@@ -553,7 +729,7 @@ class Namesilo extends RegistrarModule
                 }
 
                 // Sync domain contacts for the current client
-                $this->setContactsFromServices($domains, $row, $client->id, [$vars['domain'] => $client->id]);
+                $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
             }
         }
 
@@ -2338,7 +2514,7 @@ class Namesilo extends RegistrarModule
                 );
             } elseif (isset($post['pull_contacts'])) {
                 $module_row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
-                $this->setContactsFromServices($domains, $module_row, $client_id);
+                $this->synchronizeContactsForModuleRow($module_row, null, $client_id);
             }
 
             $vars = (object) $post;
@@ -3327,15 +3503,18 @@ class Namesilo extends RegistrarModule
      *
      * @param string $command The name of the command to load
      * @param int $module_row_id The ID of the module row which provides credentials for initializing the API
+     * @param bool $force_new True to force a new instance of the API, false by default
      * @return mixed The API command object
      */
-    private function loadApiCommand($command, $module_row_id) {
+    private function loadApiCommand($command, $module_row_id, $force_new = false)
+    {
         $full_command_class = 'Namesilo' . $command;
 
-        if (!$this->api) {
+        if (!$this->api || $force_new) {
             $row = $this->getModuleRow($module_row_id);
             $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         }
+
         return new $full_command_class($this->api);
     }
 

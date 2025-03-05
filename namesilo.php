@@ -238,7 +238,7 @@ class Namesilo extends RegistrarModule
             select(['services.*', 'service_fields.value' => 'domain'])->
             on('service_fields.key', '=', 'domain')->
             innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-            on('module_client_meta.key', '=', 'contacts',)->
+            on('module_client_meta.key', '=', 'contacts')->
             on('module_client_meta.client_id', '=', 'services.client_id', false)->
             leftJoin('module_client_meta', 'module_client_meta.module_row_id', '=', 'services.module_row_id', false)->
             where('module_client_meta.value', '=', null)->

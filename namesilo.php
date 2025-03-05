@@ -295,7 +295,7 @@ class Namesilo extends RegistrarModule
     private function synchronizeContactsForDomains($queued_client_domains, $module_row)
     {
         // Get the contact info for each domain
-        $domains_api = $this->loadApiCommand('Domains', $module_row->id);
+        $domains_api = $this->loadApiCommand('Domains', $module_row->id, true);
         $client_contacts = [];
         foreach ($queued_client_domains as $client_id => $queued_domains) {
             foreach ($queued_domains as $queued_domain) {
@@ -3503,15 +3503,18 @@ class Namesilo extends RegistrarModule
      *
      * @param string $command The name of the command to load
      * @param int $module_row_id The ID of the module row which provides credentials for initializing the API
+     * @param bool $force_new True to force a new instance of the API, false by default
      * @return mixed The API command object
      */
-    private function loadApiCommand($command, $module_row_id) {
+    private function loadApiCommand($command, $module_row_id, $force_new = false)
+    {
         $full_command_class = 'Namesilo' . $command;
 
-        if (!$this->api) {
+        if (!$this->api || $force_new) {
             $row = $this->getModuleRow($module_row_id);
             $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
         }
+
         return new $full_command_class($this->api);
     }
 

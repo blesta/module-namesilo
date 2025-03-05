@@ -53,6 +53,21 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Performs any necessary bootstraping actions. Sets Input errors on
+     * failure, preventing the module from being added.
+     *
+     * @return array A numerically indexed array of meta data containing:
+     *
+     *  - key The key for this meta field
+     *  - value The value for this key
+     *  - encrypted Whether or not this field should be encrypted (default 0, not encrypted)
+     */
+    public function install()
+    {
+        $this->addCronTasks($this->getCronTasks());
+    }
+
+    /**
      * Performs migration of data from $current_version (the current installed version)
      * to the given file set version. Sets Input errors on failure, preventing
      * the module from being upgraded.

@@ -74,6 +74,7 @@ $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
 $lang['Namesilo.tab_whois.copy_registrant_info'] = 'Copy Registrant Info';
 
 $lang['Namesilo.tab_manage_contacts.title'] = 'Manage Contacts';
+$lang['Namesilo.tab_manage_contacts.heading_contact_id'] = 'Contact ID';
 $lang['Namesilo.tab_manage_contacts.heading_name'] = 'Contact Name';
 $lang['Namesilo.tab_manage_contacts.heading_options'] = 'Options';
 $lang['Namesilo.tab_manage_contacts.option_add'] = 'Add Contact';

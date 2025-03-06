@@ -8,6 +8,7 @@
                 <thead>
                     <tr class="heading_row">
                         <th class="icon">&nbsp;</th>
+                        <th><?php $this->_('Namesilo.tab_manage_contacts.heading_contact_id');?></th>
                         <th><?php $this->_('Namesilo.tab_manage_contacts.heading_name');?></th>
                         <th><?php $this->_('Namesilo.tab_manage_contacts.heading_options');?></th>
                     </tr>
@@ -19,6 +20,7 @@
                 ?>
                     <tr <?php echo (($i % 2) == 1) ? 'class="odd_row"' : '' ?>>
                         <td><?php $this->Form->fieldRadio('default_contact_id', $contact_id, ($vars->default_contact_id ?? null) == $contact_id, []); ?></td>
+                        <td><?php echo $this->Html->safe($contact_id) ?></td>
                         <td><?php echo $this->Html->safe($contact_name)?></td>
                         <td>
                             <a href="<?php echo $this->base_uri . 'services/manage/' . (isset($service->id) ? $this->Html->safe($service->id) : null) . '/tabClientManageContacts/?action=manage&contact_id=' . $contact_id;?>"><?php $this->_('Namesilo.tab_manage_contacts.option_edit');?></a>

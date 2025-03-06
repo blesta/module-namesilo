@@ -2211,7 +2211,6 @@ class Namesilo extends RegistrarModule
             foreach(json_decode($contact_meta->value, true) ?? [] as $contact_id => $contact_name) {
                 $contacts[$contact_id] = $contact_name . "-" . $contact_id;
             }
-            $contacts = json_decode($contact_meta->value, true);
         }
 
         $this->view->set('vars', $vars);

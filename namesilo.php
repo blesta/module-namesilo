@@ -2208,6 +2208,9 @@ class Namesilo extends RegistrarModule
         $module = $this->getModule();
         $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
         if ($contact_meta) {
+            foreach(json_decode($contact_meta->value, true) ?? [] as $contact_id => $contact_name) {
+                $contacts[$contact_id] = $contact_name . "-" . $contact_id;
+            }
             $contacts = json_decode($contact_meta->value, true);
         }
 

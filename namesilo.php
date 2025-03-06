@@ -741,10 +741,10 @@ class Namesilo extends RegistrarModule
 
                         return;
                     }
-                }
 
-                // Sync domain contacts for the current client
-                $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
+                    // Sync domain contacts for the current client
+                    $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
+                }
             }
         }
 

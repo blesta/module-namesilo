@@ -53,6 +53,21 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Performs any necessary bootstraping actions. Sets Input errors on
+     * failure, preventing the module from being added.
+     *
+     * @return array A numerically indexed array of meta data containing:
+     *
+     *  - key The key for this meta field
+     *  - value The value for this key
+     *  - encrypted Whether or not this field should be encrypted (default 0, not encrypted)
+     */
+    public function install()
+    {
+        $this->addCronTasks($this->getCronTasks());
+    }
+
+    /**
      * Performs migration of data from $current_version (the current installed version)
      * to the given file set version. Sets Input errors on failure, preventing
      * the module from being upgraded.
@@ -238,7 +253,7 @@ class Namesilo extends RegistrarModule
             select(['services.*', 'service_fields.value' => 'domain'])->
             on('service_fields.key', '=', 'domain')->
             innerJoin('service_fields', 'service_fields.service_id', '=', 'services.id', false)->
-            on('module_client_meta.key', '=', 'contacts',)->
+            on('module_client_meta.key', '=', 'contacts')->
             on('module_client_meta.client_id', '=', 'services.client_id', false)->
             leftJoin('module_client_meta', 'module_client_meta.module_row_id', '=', 'services.module_row_id', false)->
             where('module_client_meta.value', '=', null)->
@@ -726,10 +741,10 @@ class Namesilo extends RegistrarModule
 
                         return;
                     }
-                }
 
-                // Sync domain contacts for the current client
-                $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
+                    // Sync domain contacts for the current client
+                    $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
+                }
             }
         }
 

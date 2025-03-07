@@ -7,7 +7,7 @@
             <thead>
                 <tr class="heading_row">
                     <td class="icon">&nbsp;</td>
-                    <th><?php $this->_('Namesilo.tab_manage_contacts.heading_contact_id');?></th>
+                    <td><?php $this->_('Namesilo.tab_manage_contacts.heading_contact_id');?></td>
                     <td><?php $this->_('Namesilo.tab_manage_contacts.heading_name');?></td>
                     <td><?php $this->_('Namesilo.tab_manage_contacts.heading_options');?></td>
                 </tr>

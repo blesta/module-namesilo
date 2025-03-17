@@ -697,6 +697,11 @@ class Namesilo extends RegistrarModule
 
                 // Handle transfer
                 if (isset($vars['auth']) && $vars['auth']) {
+                    // Check if the domain is available for transfer
+                    if (!$this->checkTransferAvailability($vars['domain'], $row->id)) {
+                        return;
+                    }
+
                     $transfer = new NamesiloDomainsTransfer($api);
                     $response = $transfer->create($fields);
                     $this->processResponse($api, $response);
@@ -709,6 +714,11 @@ class Namesilo extends RegistrarModule
                         return;
                     }
                 } else {
+                    // Check if the domain is available for registration
+                    if (!$this->checkAvailability($vars['domain'], $row->id)) {
+                        return;
+                    }
+
                     // Handle registration
                     $domains = new NamesiloDomains($api);
 
@@ -3178,7 +3188,7 @@ class Namesilo extends RegistrarModule
         $attributes = $xpath_result[0]->attributes();
         if (isset($attributes->premium) && $attributes->premium == "1") {
             $this->Input->setErrors(
-                ['availability' => ['premium' => Language::_('Namesilo.!error.permium_domain', true, $domain)]]
+                ['availability' => ['premium' => Language::_('Namesilo.!error.premium_domain', true, $domain)]]
             );
 
             return false;

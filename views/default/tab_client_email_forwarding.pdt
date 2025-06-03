@@ -22,7 +22,7 @@
                                 foreach ($address->forwards_to as $index => $email) {
                                     ?>
                                     <tr>
-                                        <td<?php echo $index !== 0 ? ' class="text-muted"' : ''; ?>><?php echo $address->email ?? ''; ?></td>
+                                        <td<?php echo $index !== 0 ? ' class="text-muted font-italic"' : ''; ?>><?php echo $address->email ?? ''; ?></td>
                                         <td><?php $this->Form->fieldText('emails[' . ($address->email ?? null) . '][]', $email ?? ''); ?></td>
                                         <?php
                                         if ($index == 0) {
@@ -54,7 +54,7 @@
                                 }
                                 ?>
                                 <tr>
-                                    <td class="text-muted"></td>
+                                    <td class="text-muted font-italic"><?php echo $address->email ?? ''; ?></td>
                                     <td colspan="2"><?php $this->Form->fieldText('emails[' . ($address->email ?? null) . '][]'); ?></td>
                                 </tr>
                             <?php

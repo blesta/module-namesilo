@@ -581,7 +581,7 @@ class Namesilo extends RegistrarModule
         $status = 'pending'
     )
     {
-        $row = $this->getModuleRow($package->module_row);
+        $row = $this->getModuleRow();
         $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
 
         #
@@ -3590,7 +3590,7 @@ class Namesilo extends RegistrarModule
 
         // Set errors, if any
         if ((self::$codes[$status][1] ?? 'fail') == 'fail') {
-            $errors = $response->errors() ? $response->errors() : [];
+            $errors = $response->errors() ? $response->errors() : ['Internal Server Error'];
             $this->Input->setErrors(['errors' => (array) $errors]);
         }
     }

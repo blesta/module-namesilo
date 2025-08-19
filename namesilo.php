@@ -3029,6 +3029,7 @@ class Namesilo extends RegistrarModule
         $vars->records = $records['resource_record'];
 
         $this->view->set('vars', $vars);
+        $this->view->set('fields', $fields);
         $this->view->set('client_id', $service->client_id);
         $this->view->set('service_id', $service->id);
 

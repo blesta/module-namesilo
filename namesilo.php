@@ -2664,6 +2664,28 @@ class Namesilo extends RegistrarModule
             }
         }
 
+        // Show nameservers alert
+        $required_nameservers = ['ns1.dnsowl.com', 'ns2.dnsowl.com', 'ns3.dnsowl.com'];
+        $current_nameservers = [];
+        $nameservers = $this->getDomainNameServers($fields->domain, $row->id ?? null);
+        foreach ($nameservers as $nameserver) {
+            if (empty($nameserver['url'])) {
+                continue;
+            }
+            $current_nameservers[] = $nameserver['url'];
+        }
+
+        $required_nameservers_count = 0;
+        foreach ($required_nameservers as $nameserver) {
+            if (in_array($nameserver, $current_nameservers)) {
+                $required_nameservers_count++;
+            }
+        }
+
+        if ($required_nameservers_count !== count($current_nameservers) || $required_nameservers_count < 2) {
+            $this->setMessage('notice', Language::_('Namesilo.notice.default_nameservers', true));
+        }
+
         $this->view->set('vars', $vars);
         $this->view->set('domain', $fields->domain);
         $this->view->setDefaultView(self::$defaultModuleView);
@@ -3023,6 +3045,28 @@ class Namesilo extends RegistrarModule
         // We are expecting a multidimensional array
         if ($this->isMultiArray($records['resource_record']) === false) {
             $records['resource_record'] = [0 => $records['resource_record']];
+        }
+
+        // Show nameservers alert
+        $required_nameservers = ['ns1.dnsowl.com', 'ns2.dnsowl.com', 'ns3.dnsowl.com'];
+        $current_nameservers = [];
+        $nameservers = $this->getDomainNameServers($fields->domain, $row->id ?? null);
+        foreach ($nameservers as $nameserver) {
+            if (empty($nameserver['url'])) {
+                continue;
+            }
+            $current_nameservers[] = $nameserver['url'];
+        }
+
+        $required_nameservers_count = 0;
+        foreach ($required_nameservers as $nameserver) {
+            if (in_array($nameserver, $current_nameservers)) {
+                $required_nameservers_count++;
+            }
+        }
+
+        if ($required_nameservers_count !== count($current_nameservers) || $required_nameservers_count < 2) {
+            $this->setMessage('notice', Language::_('Namesilo.notice.default_nameservers', true));
         }
 
         $vars->selects = Configure::get('Namesilo.dns_records');

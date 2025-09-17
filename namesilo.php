@@ -716,6 +716,9 @@ class Namesilo extends RegistrarModule
                 } else {
                     // Check if the domain is available for registration
                     if (!$this->checkAvailability($vars['domain'], $row->id)) {
+                    $this->Input->setErrors(
+                        ['domain' => ['invalid' => Language::_('Namesilo.!error.domain_unavailable', true)]]
+                    );
                         return;
                     }
 

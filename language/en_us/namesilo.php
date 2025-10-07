@@ -190,6 +190,7 @@ $lang['Namesilo.!error.invalid_term'] = 'Invalid number of years, or no years pr
 $lang['Namesilo.notice.StatusPending'] = 'This order is pending. The feature you are trying to access will become available once the order has been activated successfully.';
 $lang['Namesilo.notice.StatusSuspended'] = 'This domain name has been suspended; domain management features are therefore currently unavailable. Please contact your service provider for more details or to reinstate service.';
 $lang['Namesilo.notice.TransferPending'] = 'This domain is currently awaiting transfer completion.  Until the transfer is complete domain management features are unavailable.';
+$lang['Namesilo.notice.default_nameservers'] = 'This feature requires that the domain use the following name servers: ns1.dnsowl.com, ns2.dnsowl.com, and ns3.dnsowl.com.';
 
 
 // Domain Transfer Fields

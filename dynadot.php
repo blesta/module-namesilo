@@ -232,7 +232,7 @@ class Dynadot extends RegistrarModule
                 if (isset($vars['auth']) && $vars['auth']) {
                     $args = [
                         'domain' => $vars['domain'],
-                        'auth' => $vars['auth']
+                        'auth_code' => $vars['auth']
                     ];
 
                     $nameservers = [];
@@ -603,8 +603,8 @@ class Dynadot extends RegistrarModule
     public function validateConnection($key, $sandbox)
     {
         $api = $this->getApi($key, $sandbox == 'true');
-        // Use account_info for validation as is_processing was questioned
-        $response = $api->submit('account_info');
+        // Use get_account_balance for validation as account_info/is_processing were problematic or questioned
+        $response = $api->submit('get_account_balance');
         $this->processResponse($api, $response);
 
         // Dynadot returns XML/JSON.
@@ -1024,6 +1024,20 @@ class Dynadot extends RegistrarModule
         $whois_fields = Configure::get('Dynadot.whois_fields');
         $sections = ['Registrant', 'Admin', 'Technical', 'Billing'];
 
+        // Get current info for IDs
+        $current_ids = [];
+        $info = $api->submit('domain_info', ['domain' => $domain]);
+        $info_res = $info->response();
+
+        if (isset($info_res->DomainInfoContent->Domain->Whois)) {
+            $whois_ids = $info_res->DomainInfoContent->Domain->Whois;
+            foreach ($sections as $section) {
+                if (isset($whois_ids->$section->ContactId)) {
+                    $current_ids[$section] = (string)$whois_ids->$section->ContactId;
+                }
+            }
+        }
+
         if (!empty($post)) {
             $contact_ids = [];
 
@@ -1053,20 +1067,39 @@ class Dynadot extends RegistrarModule
                 $contact_args['zip'] = $post[$prefix . 'PostalCode'] ?? '';
                 $contact_args['country'] = $post[$prefix . 'Country'] ?? '';
 
-                $response = $api->submit('create_contact', $contact_args);
-                $this->processResponse($api, $response);
+                $response = null;
+                $cid = $current_ids[$section] ?? 0;
 
-                if ($response->status() == 'success') {
-                    $res = $response->response();
-                    if (isset($res->CreateContactContent->ContactId)) {
-                        $contact_ids[strtolower($section) . '_contact'] = (string)$res->CreateContactContent->ContactId;
+                if ($cid > 0) {
+                    // Update existing
+                    $contact_args['contact_id'] = $cid;
+                    $response = $api->submit('edit_contact', $contact_args);
+                    // On success, ID stays the same
+                    if ($response->status() == 'success') {
+                        $contact_ids[strtolower($section) . '_contact'] = $cid;
                     }
                 } else {
-                    $vars = (object)$post;
-                    $this->view->set('vars', $vars);
-                    $this->view->set('fields', $whois_fields);
-                    $this->view->setDefaultView(self::$defaultModuleView);
-                    return $this->view->fetch();
+                    // Create new
+                    $response = $api->submit('create_contact', $contact_args);
+
+                    if ($response->status() == 'success') {
+                        $res = $response->response();
+                        if (isset($res->CreateContactContent->ContactId)) {
+                            $contact_ids[strtolower($section) . '_contact'] = (string)$res->CreateContactContent->ContactId;
+                        }
+                    }
+                }
+
+                if ($response && $response->status() != 'success') {
+                     // If update failed, maybe try create? Or report error.
+                     // Report error for now.
+                     $this->Input->setErrors(['errors' => $response->errors()]);
+                     // Return early to show errors
+                     $vars = (object)$post;
+                     $this->view->set('vars', $vars);
+                     $this->view->set('fields', $whois_fields);
+                     $this->view->setDefaultView(self::$defaultModuleView);
+                     return $this->view->fetch();
                 }
             }
 
@@ -1078,35 +1111,28 @@ class Dynadot extends RegistrarModule
 
             $vars = (object)$post;
         } else {
-            $info = $api->submit('domain_info', ['domain' => $domain]);
-            $info_res = $info->response();
+            // Populate vars from current info
+            foreach ($current_ids as $section => $cid) {
+                if ($cid > 0) {
+                    $c_resp = $api->submit('get_contact', ['contact_id' => $cid]);
+                    $c_res = $c_resp->response();
 
-            if (isset($info_res->DomainInfoContent->Domain->Whois)) {
-                $whois_ids = $info_res->DomainInfoContent->Domain->Whois;
-                foreach ($sections as $section) {
-                    $key = $section;
-                    if (isset($whois_ids->$key->ContactId)) {
-                        $cid = (string)$whois_ids->$key->ContactId;
-                        $c_resp = $api->submit('get_contact', ['contact_id' => $cid]);
-                        $c_res = $c_resp->response();
+                    if (isset($c_res->GetContactContent->GetContact->Contact)) {
+                        $c = $c_res->GetContactContent->GetContact->Contact;
+                        $prefix = $section;
 
-                        if (isset($c_res->GetContactContent->GetContact->Contact)) {
-                            $c = $c_res->GetContactContent->GetContact->Contact;
-                            $prefix = $section;
-
-                            $name_parts = explode(' ', (string)$c->Name, 2);
-                            $vars->{$prefix . 'FirstName'} = $name_parts[0] ?? '';
-                            $vars->{$prefix . 'LastName'} = $name_parts[1] ?? '';
-                            $vars->{$prefix . 'EmailAddress'} = (string)$c->Email;
-                            $vars->{$prefix . 'Phone'} = '+' . (string)$c->PhoneCc . '.' . (string)$c->PhoneNum;
-                            $vars->{$prefix . 'Organization'} = (string)$c->Organization;
-                            $vars->{$prefix . 'Address1'} = (string)$c->Address1;
-                            $vars->{$prefix . 'Address2'} = (string)$c->Address2;
-                            $vars->{$prefix . 'City'} = (string)$c->City;
-                            $vars->{$prefix . 'StateProvince'} = (string)$c->State;
-                            $vars->{$prefix . 'PostalCode'} = (string)$c->ZipCode;
-                            $vars->{$prefix . 'Country'} = (string)$c->Country;
-                        }
+                        $name_parts = explode(' ', (string)$c->Name, 2);
+                        $vars->{$prefix . 'FirstName'} = $name_parts[0] ?? '';
+                        $vars->{$prefix . 'LastName'} = $name_parts[1] ?? '';
+                        $vars->{$prefix . 'EmailAddress'} = (string)$c->Email;
+                        $vars->{$prefix . 'Phone'} = '+' . (string)$c->PhoneCc . '.' . (string)$c->PhoneNum;
+                        $vars->{$prefix . 'Organization'} = (string)$c->Organization;
+                        $vars->{$prefix . 'Address1'} = (string)$c->Address1;
+                        $vars->{$prefix . 'Address2'} = (string)$c->Address2;
+                        $vars->{$prefix . 'City'} = (string)$c->City;
+                        $vars->{$prefix . 'StateProvince'} = (string)$c->State;
+                        $vars->{$prefix . 'PostalCode'} = (string)$c->ZipCode;
+                        $vars->{$prefix . 'Country'} = (string)$c->Country;
                     }
                 }
             }
@@ -1302,7 +1328,7 @@ class Dynadot extends RegistrarModule
                     ];
                     $api->submit('set_dnssec', $args);
                 } elseif ($post['action'] == 'delete') {
-                    $api->submit('clear_dnssec', ['domain_name' => $domain]);
+                    $api->submit('clear_dnssec', ['domain' => $domain]);
                 }
             }
         }
@@ -1317,7 +1343,7 @@ class Dynadot extends RegistrarModule
             $vars->digest_types = [1 => 'SHA-1', 2 => 'SHA-256', 3 => 'GOSTR 34.11-94', 4 => 'SHA-384'];
         }
 
-        $response = $api->submit('get_dnssec', ['domain_name' => $domain]);
+        $response = $api->submit('get_dnssec', ['domain' => $domain]);
         $res = $response->response();
         $records = [];
         if (isset($res->GetDnssecContent->DnssecRecord)) {
@@ -1371,23 +1397,10 @@ class Dynadot extends RegistrarModule
                 if (!empty($post['main_record' . $i]) && !empty($post['main_record_type' . $i])) {
                     $args['main_record_type' . $count] = $post['main_record_type' . $i];
                     $args['main_record' . $count] = $post['main_record' . $i];
-                    // Subdomain?
-                    // Dynadot has main_record and subdomain/sub_record.
-                    // If subdomain field is empty, it's main record?
-                    // Or Blesta UI implies @ vs www?
-                    // Dynadot API:
-                    // main_record0: "Specify the DNS record for your domain" (e.g. root)
-                    // subdomain0: "Subdomain records"
 
-                    // We need logic to separate root from sub.
                     if (!empty($post['subdomain' . $i])) {
                         unset($args['main_record_type' . $count]);
                         unset($args['main_record' . $count]);
-
-                        // It is a subdomain
-                        // We need separate counters for main vs sub in Dynadot API
-                        // But wait, the API uses separate params: main_record_type0... and sub_record_type0...
-                        // We need to accumulate them separately.
                     } else {
                         $count++;
                     }
@@ -1409,7 +1422,7 @@ class Dynadot extends RegistrarModule
                         $m_cnt++;
                     } else {
                         // Sub
-                        $sub_args['sub_record_type' . $s_cnt] = $post['main_record_type' . $i]; // using same type select
+                        $sub_args['sub_record_type' . $s_cnt] = $post['main_record_type' . $i];
                         $sub_args['sub_record' . $s_cnt] = $post['main_record' . $i];
                         $sub_args['subdomain' . $s_cnt] = $post['subdomain' . $i];
                         $s_cnt++;
@@ -1449,7 +1462,6 @@ class Dynadot extends RegistrarModule
 
         if (!empty($post)) {
             // Process update - overwrite
-            // set_email_forward: domain, forward_type=forward, username0, exist_email0...
             $args = [
                 'domain' => $domain,
                 'forward_type' => 'forward'

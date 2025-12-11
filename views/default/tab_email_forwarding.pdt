@@ -1,43 +1,86 @@
-    <div class="title_row first">
-        <h3><?php $this->_('Dynadot.tab_email_forwarding.title');?></h3>
-    </div>
-    <div class="pad">
-        <div class="alert alert-warning">
-            <p><?php $this->_('Dynadot.tab_email_forwarding.warning_overwrite');?></p>
-        </div>
 
-        <?php
-        $this->Form->create();
-        ?>
-        <table class="table">
-            <thead>
-                <tr class="heading_row">
-                    <td><?php $this->_('Dynadot.email_forwarding.username');?></td>
-                    <td><?php $this->_('Dynadot.email_forwarding.destination');?></td>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                // Show 5 empty rows
-                for ($i=0; $i<5; $i++) {
-                ?>
-                <tr>
-                    <td>
-                        <?php $this->Form->fieldText('username' . $i, $vars->{'username' . $i} ?? '', ['class' => 'block']); ?>
-                    </td>
-                    <td>
-                        <?php $this->Form->fieldText('exist_email' . $i, $vars->{'exist_email' . $i} ?? '', ['class' => 'block']); ?>
-                    </td>
-                </tr>
-                <?php
+	<div class="pad">
+		<div class="title_row first">
+			<h3><?php $this->_('Dynadot.tab_email_forwarding.title_list'); ?></h3>
+		</div>
+		<div class="links_row">
+			<a class="btn btn-default pull-right btn-sm" href="#" id="add_forward"><i class="fas fa-plus"></i> <?php $this->_('Dynadot.tab_email_forwarding.add_record'); ?></a>
+		</div>
+		<table class="table" id="email_forwards">
+			<thead>
+				<tr class="heading_row">
+					<td><?php $this->_('Dynadot.tab_email_forwarding.username'); ?></td>
+					<td><?php $this->_('Dynadot.tab_email_forwarding.destination'); ?></td>
+					<td><?php $this->_('Dynadot.tab_email_forwarding.options'); ?></td>
+				</tr>
+			</thead>
+			<tbody>
+				<?php
+				$i = 0;
+                $has_records = false;
+				while (isset($vars->{'username' . $i})) {
+                    $has_records = true;
+					?>
+					<tr>
+						<td><?php $this->Form->fieldText('username' . $i, $this->Html->ifSet($vars->{'username' . $i}), ['class' => 'form-control input-sm']); ?></td>
+						<td><?php $this->Form->fieldText('exist_email' . $i, $this->Html->ifSet($vars->{'exist_email' . $i}), ['class' => 'form-control input-sm']); ?></td>
+						<td><a href="#" class="manage delete_row"><i class="fas fa-trash-alt"></i> <?php $this->_('Blesta.delete'); ?></a></td>
+					</tr>
+					<?php
+					$i++;
+				}
+                if (!$has_records) {
+                    ?>
+					<tr>
+						<td><?php $this->Form->fieldText('username0', null, ['class' => 'form-control input-sm']); ?></td>
+						<td><?php $this->Form->fieldText('exist_email0', null, ['class' => 'form-control input-sm']); ?></td>
+						<td><a href="#" class="manage delete_row"><i class="fas fa-trash-alt"></i> <?php $this->_('Blesta.delete'); ?></a></td>
+					</tr>
+                    <?php
+                    $i = 1;
                 }
-                ?>
-            </tbody>
-        </table>
-        <div class="button_row">
-            <?php $this->Form->fieldSubmit('save', $this->_('Dynadot.tab_email_forwarding.field_submit', true), ['class' => 'btn btn-primary pull-right']); ?>
-        </div>
-        <?php
-        $this->Form->end();
-        ?>
-    </div>
+				?>
+			</tbody>
+		</table>
+	</div>
+	<div class="button_row">
+		<?php
+		$this->Form->fieldSubmit('save', $this->_('Dynadot.tab_email_forwarding.field_submit', true), ['class' => 'btn btn-primary pull-right']);
+		?>
+	</div>
+	<?php
+	$this->Form->end();
+	?>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    var record_count = <?php echo $i; ?>;
+
+    $('#add_forward').click(function(e) {
+        e.preventDefault();
+
+        var clone = $('#email_forwards tbody tr').first().clone();
+        clone.find('input').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                var new_name = name.replace(/\d+$/, record_count);
+                $(this).attr('name', new_name);
+                $(this).attr('id', new_name);
+                $(this).val('');
+            }
+        });
+
+        $('#email_forwards tbody').append(clone);
+        record_count++;
+    });
+
+    $(document).on('click', '.delete_row', function(e) {
+        e.preventDefault();
+        if ($('#email_forwards tbody tr').length > 1) {
+            $(this).closest('tr').remove();
+        } else {
+            $(this).closest('tr').find('input').val('');
+        }
+    });
+});
+</script>

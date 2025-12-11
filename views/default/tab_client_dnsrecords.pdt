@@ -1,46 +1,93 @@
-    <div class="row panel-fix">
-        <div class="col-md-12">
-            <h4><?php $this->_('Dynadot.tab_dnsrecords.title');?></h4>
-            <div class="alert alert-warning">
-                <p><?php $this->_('Dynadot.tab_dnsrecords.warning_overwrite');?></p>
-            </div>
 
-            <?php
-            $this->Form->create();
-            ?>
-            <table class="table table-striped">
+	<div class="pad">
+		<div class="title_row first">
+			<h3><?php $this->_('Dynadot.tab_dnsrecords.title_list'); ?></h3>
+		</div>
+		<div class="links_row">
+			<a class="btn btn-default pull-right btn-sm" href="#" id="add_dns_record"><i class="fas fa-plus"></i> <?php $this->_('Dynadot.tab_dnsrecords.add_record'); ?></a>
+		</div>
+		<div class="table-responsive">
+            <table class="table table-curved table-striped" id="dns_records">
                 <thead>
-                    <tr>
-                        <th><?php $this->_('Dynadot.dnsrecord.record_type');?></th>
-                        <th><?php $this->_('Dynadot.dnsrecord.host');?></th>
-                        <th><?php $this->_('Dynadot.dnsrecord.value');?></th>
+                    <tr class="heading_row">
+                        <th><?php $this->_('Dynadot.tab_dnsrecords.record_type'); ?></th>
+                        <th><?php $this->_('Dynadot.tab_dnsrecords.host'); ?></th>
+                        <th><?php $this->_('Dynadot.tab_dnsrecords.value'); ?></th>
+                        <th><?php $this->_('Dynadot.tab_dnsrecords.options'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php
-                    for ($i=0; $i<5; $i++) {
-                    ?>
-                    <tr>
-                        <td>
-                            <?php $this->Form->fieldSelect('main_record_type' . $i, $vars->record_types ?? [], $vars->{'main_record_type' . $i} ?? null, ['class' => 'form-control']); ?>
-                        </td>
-                        <td>
-                            <?php $this->Form->fieldText('subdomain' . $i, $vars->{'subdomain' . $i} ?? '', ['class' => 'form-control']); ?>
-                        </td>
-                        <td>
-                            <?php $this->Form->fieldText('main_record' . $i, $vars->{'main_record' . $i} ?? '', ['class' => 'form-control']); ?>
-                        </td>
-                    </tr>
-                    <?php
+                    $i = 0;
+                    $has_records = false;
+                    while (isset($vars->{'main_record_type' . $i})) {
+                        $has_records = true;
+                        ?>
+                        <tr>
+                            <td><?php $this->Form->fieldSelect('main_record_type' . $i, $vars->record_types, $this->Html->ifSet($vars->{'main_record_type' . $i}), ['class' => 'form-control input-sm']); ?></td>
+                            <td><?php $this->Form->fieldText('subdomain' . $i, $this->Html->ifSet($vars->{'subdomain' . $i}), ['class' => 'form-control input-sm', 'placeholder' => 'subdomain']); ?></td>
+                            <td><?php $this->Form->fieldText('main_record' . $i, $this->Html->ifSet($vars->{'main_record' . $i}), ['class' => 'form-control input-sm']); ?></td>
+                            <td><a href="#" class="manage delete_row"><i class="fas fa-trash-alt"></i> <?php $this->_('Blesta.delete'); ?></a></td>
+                        </tr>
+                        <?php
+                        $i++;
+                    }
+
+                    if (!$has_records) {
+                        ?>
+                        <tr>
+                            <td><?php $this->Form->fieldSelect('main_record_type0', $vars->record_types, null, ['class' => 'form-control input-sm']); ?></td>
+                            <td><?php $this->Form->fieldText('subdomain0', null, ['class' => 'form-control input-sm', 'placeholder' => 'subdomain']); ?></td>
+                            <td><?php $this->Form->fieldText('main_record0', null, ['class' => 'form-control input-sm']); ?></td>
+                            <td><a href="#" class="manage delete_row"><i class="fas fa-trash-alt"></i> <?php $this->_('Blesta.delete'); ?></a></td>
+                        </tr>
+                        <?php
+                        $i = 1;
                     }
                     ?>
                 </tbody>
             </table>
-            <div class="button_row">
-                <?php $this->Form->fieldSubmit('save', $this->_('Dynadot.tab_dnsrecords.field_submit', true), ['class' => 'btn btn-primary pull-right']); ?>
-            </div>
-            <?php
-            $this->Form->end();
-            ?>
         </div>
-    </div>
+	</div>
+	<div class="button_row">
+		<?php
+		$this->Form->fieldSubmit('save', $this->_('Dynadot.tab_dnsrecords.field_submit', true), ['class' => 'btn btn-primary pull-right']);
+		?>
+	</div>
+	<?php
+	$this->Form->end();
+	?>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    var record_count = <?php echo $i; ?>;
+
+    $('#add_dns_record').click(function(e) {
+        e.preventDefault();
+
+        var clone = $('#dns_records tbody tr').first().clone();
+        clone.find('input, select').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                var new_name = name.replace(/\d+$/, record_count);
+                $(this).attr('name', new_name);
+                $(this).attr('id', new_name);
+                $(this).val('');
+            }
+        });
+
+        $('#dns_records tbody').append(clone);
+        record_count++;
+    });
+
+    $(document).on('click', '.delete_row', function(e) {
+        e.preventDefault();
+        if ($('#dns_records tbody tr').length > 1) {
+            $(this).closest('tr').remove();
+        } else {
+            $(this).closest('tr').find('input').val('');
+            $(this).closest('tr').find('select').prop('selectedIndex', 0);
+        }
+    });
+});
+</script>

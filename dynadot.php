@@ -1044,7 +1044,43 @@ class Dynadot extends RegistrarModule
      */
     public function getAdminServiceInfo($service, $package)
     {
-        return '';
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
+        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+        $domain = $this->getServiceDomain($service);
+
+        // Fetch domain info
+        $result = $api->submit('domain_info', ['domain' => $domain]);
+        $res = $result->response();
+
+        $vars = [
+            'domain' => $domain,
+            'status' => 'Unknown',
+            'expiration' => '',
+            'locked' => 'Unknown'
+        ];
+
+        if (isset($res->DomainInfoContent->Domain)) {
+            $d = $res->DomainInfoContent->Domain;
+            $vars['status'] = isset($d->Status) ? (string)$d->Status : 'Unknown';
+            // Expiration is timestamp in ms
+            if (isset($d->Expiration)) {
+                 $vars['expiration'] = date('Y-m-d H:i:s', (string)$d->Expiration / 1000);
+            }
+            $vars['locked'] = (isset($d->Locked) && $d->Locked == 'yes') ? 'Yes' : 'No';
+        }
+
+        Loader::loadHelpers($this, ['Html', 'Date']);
+
+        $this->view = new View('admin_service_info', 'default');
+        $this->view->base_uri = $this->base_uri;
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        $this->view->set('domain', $vars['domain']);
+        $this->view->set('status', $vars['status']);
+        $this->view->set('expiration', $vars['expiration']);
+        $this->view->set('locked', $vars['locked']);
+
+        return $this->view->fetch();
     }
 
     /**
@@ -1057,7 +1093,42 @@ class Dynadot extends RegistrarModule
      */
     public function getClientServiceInfo($service, $package)
     {
-        return '';
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
+        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+        $domain = $this->getServiceDomain($service);
+
+        // Fetch domain info
+        $result = $api->submit('domain_info', ['domain' => $domain]);
+        $res = $result->response();
+
+        $vars = [
+            'domain' => $domain,
+            'status' => 'Unknown',
+            'expiration' => '',
+            'locked' => 'Unknown'
+        ];
+
+        if (isset($res->DomainInfoContent->Domain)) {
+            $d = $res->DomainInfoContent->Domain;
+            $vars['status'] = isset($d->Status) ? (string)$d->Status : 'Unknown';
+            if (isset($d->Expiration)) {
+                 $vars['expiration'] = date('Y-m-d H:i:s', (string)$d->Expiration / 1000);
+            }
+            $vars['locked'] = (isset($d->Locked) && $d->Locked == 'yes') ? 'Yes' : 'No';
+        }
+
+        Loader::loadHelpers($this, ['Html', 'Date']);
+
+        $this->view = new View('client_service_info', 'default');
+        $this->view->base_uri = $this->base_uri;
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        $this->view->set('domain', $vars['domain']);
+        $this->view->set('status', $vars['status']);
+        $this->view->set('expiration', $vars['expiration']);
+        $this->view->set('locked', $vars['locked']);
+
+        return $this->view->fetch();
     }
 
     public function getPackageFields($vars = null)
@@ -1695,29 +1766,15 @@ class Dynadot extends RegistrarModule
             // Process update - overwrite
             $args = ['domain' => $domain];
 
-            // Collect records
-            $count = 0;
-            for ($i=0; $i<5; $i++) {
-                if (!empty($post['main_record' . $i]) && !empty($post['main_record_type' . $i])) {
-                    $args['main_record_type' . $count] = $post['main_record_type' . $i];
-                    $args['main_record' . $count] = $post['main_record' . $i];
-
-                    if (!empty($post['subdomain' . $i])) {
-                        unset($args['main_record_type' . $count]);
-                        unset($args['main_record' . $count]);
-                    } else {
-                        $count++;
-                    }
-                }
-            }
-
             // Re-loop to handle correctly
             $main_args = [];
             $sub_args = [];
             $m_cnt = 0;
             $s_cnt = 0;
 
-            for ($i=0; $i<5; $i++) {
+            // Iterate until no more keys found in post
+            $i = 0;
+            while (isset($post['main_record_type' . $i])) {
                 if (!empty($post['main_record' . $i]) && !empty($post['main_record_type' . $i])) {
                     if (empty($post['subdomain' . $i])) {
                         // Main
@@ -1732,6 +1789,7 @@ class Dynadot extends RegistrarModule
                         $s_cnt++;
                     }
                 }
+                $i++;
             }
 
             $api_args = array_merge(['domain' => $domain], $main_args, $sub_args);
@@ -1745,7 +1803,6 @@ class Dynadot extends RegistrarModule
                  $recs = is_array($res->GetDnsContent->DnsContent->MainRecord) ? $res->GetDnsContent->DnsContent->MainRecord : [$res->GetDnsContent->DnsContent->MainRecord];
                  $i = 0;
                  foreach ($recs as $r) {
-                     if ($i >= 5) break;
                      $vars->{'main_record_type' . $i} = (string)$r->RecordType;
                      $vars->{'main_record' . $i} = (string)$r->Value;
                      $i++;
@@ -1756,7 +1813,6 @@ class Dynadot extends RegistrarModule
                  $recs = is_array($res->GetDnsContent->DnsContent->SubRecord) ? $res->GetDnsContent->DnsContent->SubRecord : [$res->GetDnsContent->DnsContent->SubRecord];
                  $i = (isset($i) ? $i : 0);
                  foreach ($recs as $r) {
-                     if ($i >= 5) break;
                      $vars->{'main_record_type' . $i} = (string)$r->RecordType;
                      $vars->{'main_record' . $i} = (string)$r->Value;
                      $vars->{'subdomain' . $i} = (string)$r->SubHost;
@@ -1799,16 +1855,34 @@ class Dynadot extends RegistrarModule
             ];
 
             $count = 0;
-            for ($i=0; $i<5; $i++) {
+            // Iterate until no more keys found in post
+            $i = 0;
+            while (isset($post['username' . $i])) {
                 if (!empty($post['username' . $i]) && !empty($post['exist_email' . $i])) {
                     $args['username' . $count] = $post['username' . $i];
                     $args['exist_email' . $count] = $post['exist_email' . $i];
                     $count++;
                 }
+                $i++;
             }
 
             if ($count > 0) {
                 $api->submit('set_email_forward', $args);
+            }
+        } else {
+            // Fetch existing forwards
+            $response = $api->submit('get_email_forward', ['domain' => $domain]);
+            $res = $response->response();
+
+            if (isset($res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting)) {
+                 $settings = is_array($res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting) ? $res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting : [$res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting];
+
+                 $i = 0;
+                 foreach ($settings as $s) {
+                     $vars->{'username' . $i} = (string)$s->User;
+                     $vars->{'exist_email' . $i} = (string)$s->Email;
+                     $i++;
+                 }
             }
         }
 
@@ -1901,22 +1975,22 @@ class Dynadot extends RegistrarModule
         $phone_cc = '1';
         $phone_num = preg_replace('/[^0-9]/', '', $client->phone_number ?? ''); // strip non-digits
 
-        // Simple heuristic: if starts with +, extract CC
-        // But Blesta often stores without +.
-        // If we can't parse easily, default to US/1.
-        // Or if the client has a country, use that to lookup code? Too complex for now.
-        // Let's assume standard format or default.
-        if (strlen($phone_num) > 10) {
-             // Maybe has CC?
-             // e.g. 447700900000 -> 44, 7700900000
-             // This is risky.
-             // Safer to fallback to US 1 if unsure, or leave CC 1.
-        }
-        // Actually, Dynadot requires valid CC.
-        // Let's try to match a leading +CC pattern from $client->phone (original string).
+        // Try to match a leading +CC pattern from $client->phone (original string).
         if (preg_match('/^\+(\d+)\.(.+)$/', $client->phone_number ?? '', $matches)) {
             $phone_cc = $matches[1];
             $phone_num = preg_replace('/[^0-9]/', '', $matches[2]);
+        } elseif (strlen($phone_num) > 10) {
+             // Heuristic: if longer than 10 digits and no +, try to guess CC?
+             // e.g. 447700900000.
+             // Risky without country info.
+             // Just default to using full number as num and 1 as CC if we can't be sure,
+             // but Dynadot will likely reject if num is too long for CC 1.
+             // Let's try to infer from Country if available?
+             // Too complex to map all countries.
+             // Fallback: If starts with 1, assume US/CA.
+             if (substr($phone_num, 0, 1) == '1') {
+                 $phone_num = substr($phone_num, 1);
+             }
         }
 
         if (empty($phone_num)) {

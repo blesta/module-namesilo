@@ -1,52 +1,36 @@
         <?php
         $this->Widget->clear();
-        $this->Widget->create($this->_('Namesilo.add_row.box_title', true));
+        $this->Widget->create($this->_('Dynadot.add_row.box_title', true));
         ?>
         <div class="inner">
             <?php
             $this->Form->create();
             ?>
             <div class="title_row first">
-                <h3><?php $this->_('Namesilo.add_row.basic_title'); ?></h3>
+                <h3><?php $this->_('Dynadot.add_row.basic_title'); ?></h3>
             </div>
             <div class="pad">
                 <ul>
                     <li>
                         <?php
-                        $this->Form->label($this->_('Namesilo.row_meta.user', true), 'user');
-                        $this->Form->fieldText('user', (isset($vars->user) ? $vars->user : null), ['id' => 'user']);
+                        $this->Form->label($this->_('Dynadot.add_row.field_key', true), 'key');
+                        $this->Form->fieldText('key', (isset($vars->key) ? $vars->key : null), ['id' => 'key', 'class' => 'block']);
                         ?>
-                    </li>
-                    <li>
-                        <?php
-                        $this->Form->label($this->_('Namesilo.row_meta.key', true), 'key');
-                        $this->Form->fieldText('key', (isset($vars->key) ? $vars->key : null), ['id' => 'key']);
-                        ?>
-                    </li>
-                    <li>
-                        <?php
-                        $this->Form->label($this->_('Namesilo.row_meta.portfolio', true), 'portfolio');
-                        $this->Form->fieldText('portfolio', (isset($vars->portfolio) ? $vars->portfolio : null), ['id' => 'portfolio']);
-                        ?>
-                    </li>
-                    <li>
-                        <?php
-                        $this->Form->label($this->_('Namesilo.row_meta.payment_id', true), 'payment_id');
-                        $this->Form->fieldText('payment_id', (isset($vars->payment_id) ? $vars->payment_id : null), ['id' => 'payment_id']);
-                        ?>
-                        <p><?php echo $this->_('Namesilo.row_meta.payment_id.description', true); ?> <a href="https://www.namesilo.com/account_billing_profiles.php" target="_blank" rel="noopener">https://www.namesilo.com/account_billing_profiles.php</a></p>
                     </li>
                     <li>
                         <?php
                         $this->Form->fieldCheckbox('sandbox', 'true', (isset($vars->sandbox) ? $vars->sandbox : null) == 'true', ['id' => 'sandbox']);
-                        $this->Form->label($this->_('Namesilo.row_meta.sandbox', true), 'sandbox', ['class' => 'inline']);
+                        $this->Form->label($this->_('Dynadot.add_row.field_sandbox', true), 'sandbox', ['class' => 'inline']);
                         ?>
                     </li>
-                    <?php $this->Form->fieldHidden('namesilo_module', true); ?>
                 </ul>
             </div>
 
-            <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.add_row.add_btn'); ?></a></div>
+            <div class="button_row">
+                <?php
+                $this->Form->fieldSubmit('save', $this->_('Dynadot.add_row.add_btn', true), ['class' => 'btn btn-primary pull-right']);
+                ?>
+            </div>
             <?php
             $this->Form->end();
             ?>

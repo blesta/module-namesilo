@@ -1,83 +1,33 @@
-    <div class="title_row first">
-        <h3><?php $this->_('Dynadot.tab_settings.section_verification'); ?></h3>
-    </div>
-    <?php
-    $this->Form->create();
-    ?>
-    <div class="pad">
-        <ul>
-            <li>
-                <?php $this->_('Dynadot.tab_settings.verification_text');
-                echo (isset($vars->registrant_verification_info['email_address']) ? $vars->registrant_verification_info['email_address'] : null); ?>:
-                <?php
-                if ((isset($vars->registrant_verification_info['verified']) ? $vars->registrant_verification_info['verified'] : null) == 'Yes') {
-                ?>
-                <span style="color:green"><?php $this->_('Dynadot.tab_settings.verified'); ?></span>!
-            </li>
-            <?php
-            } else {
-                ?>
-                <span style="color:red;font-weight:bold"><?php $this->_('Dynadot.tab_settings.not_verified'); ?></span>!
-                </li>
-                <li><?php $this->_('Dynadot.tab_settings.not_verified_warning'); ?></li>
-                <li>
-                    <?php $this->Form->fieldHidden('resend_verification_email', (isset($vars->registrant_verification_info['email_address']) ? $vars->registrant_verification_info['email_address'] : null)); ?>
-                </li>
-                <li>
-                <div class="button_row">
-                    <a class="btn btn-primary float-right submit" href="#"><?php $this->_('Dynadot.tab_settings.field_resend_verification_email'); ?></a>
-                </div>
-                </li>
-                <?php
-            }
-            ?>
-        </ul>
-    </div>
-    <?php
-    $this->Form->end();
 
-    if ($epp_code ?? false) {
-    ?>
-    <div class="title_row">
-        <h3><?php $this->_('Dynadot.tab_settings.title'); ?></h3>
-    </div>
+	<?php
+	$this->Form->create();
+	?>
+	<div class="pad">
+		<ul>
+			<li>
+				<?php
+				$this->Form->label($this->_('Dynadot.tab_settings.field_registrar_lock', true), 'registrar_lock');
 
-    <div class="pad">
-        <ul>
-            <?php
-            $this->Form->create();
-            ?>
-            <li>
-                <?php
-                $this->Form->label($this->_('Dynadot.tab_settings.field_registrar_lock', true), 'registrar_lock');
+				$this->Form->fieldRadio('registrar_lock', 'yes', $this->Html->ifSet($vars->registrar_lock) == 'yes' || $this->Html->ifSet($vars->registrar_lock) == 'true', ['id' => 'registrar_lock_yes']);
+				$this->Form->label($this->_('Dynadot.tab_settings.field_registrar_lock_yes', true), 'registrar_lock_yes', ['class' => 'inline']);
 
-                $this->Form->fieldRadio('registrar_lock', 'Yes', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'Yes', ['id' => 'registrar_lock_yes']);
-                $this->Form->label($this->_('Dynadot.tab_settings.field_registrar_lock_yes', true), 'registrar_lock_yes', ['class' => 'inline']);
-
-                $this->Form->fieldRadio('registrar_lock', 'No', (isset($vars->registrar_lock) ? $vars->registrar_lock : null) == 'No', ['id' => 'registrar_lock_no']);
-                $this->Form->label($this->_('Dynadot.tab_settings.field_registrar_lock_no', true), 'registrar_lock_no', ['class' => 'inline']);
-                ?>
-                <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Dynadot.tab_settings.field_update_registrar_lock'); ?></a></div>
-            </li>
-            <?php
-            $this->Form->end();
-            $this->Form->create();
-            ?>
-            <li class="pt-3">
-                <?php
-                $this->Form->label($this->_('Dynadot.tab_settings.field_epp_code', true), 'field_request_epp');
-
-                $this->Form->fieldCheckbox('request_epp', 'true', (isset($vars->request_epp) ? $vars->request_epp : null) == 'true', ['id' => 'request_epp']);
-                $this->Form->label($this->_('Dynadot.tab_settings.field_request_epp', true), 'request_epp', ['class' => 'inline']);
-                ?>
-
-                <div class="button_row"><a class="btn btn-primary submit" href="#"><?php $this->_('Dynadot.tab_settings.field_resend_epp_code'); ?></a></div>
-            </li>
-            <?php
-            $this->Form->end();
-            ?>
-        </ul>
-    </div>
-    <?php
-    }
-    ?>
+				$this->Form->fieldRadio('registrar_lock', 'no', $this->Html->ifSet($vars->registrar_lock) == 'no' || $this->Html->ifSet($vars->registrar_lock) == 'false', ['id' => 'registrar_lock_no']);
+				$this->Form->label($this->_('Dynadot.tab_settings.field_registrar_lock_no', true), 'registrar_lock_no', ['class' => 'inline']);
+				?>
+			</li>
+			<li>
+				<?php
+				$this->Form->label($this->_('Dynadot.tab_settings.field_request_epp', true), 'request_epp');
+				$this->Form->fieldCheckbox('request_epp', 'true', $this->Html->ifSet($vars->request_epp) == 'true', ['id' => 'request_epp']);
+				?>
+			</li>
+		</ul>
+	</div>
+	<div class="button_row">
+		<?php
+		$this->Form->fieldSubmit('save', $this->_('Dynadot.tab_settings.field_submit', true), ['class' => 'btn btn-primary pull-right']);
+		?>
+	</div>
+	<?php
+	$this->Form->end();
+	?>

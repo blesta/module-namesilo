@@ -74,74 +74,79 @@ Configure::set('Dynadot.transfer_fields', [
     ]
 ]);
 
-Configure::set('Dynadot.whois_fields', [
-    'RegistrantFirstName' => [
-        'label' => Language::_('Dynadot.whois.RegistrantFirstName', true),
+$whois_sections = ['Registrant', 'Admin', 'Technical', 'Billing'];
+$whois_fields = [];
+
+foreach ($whois_sections as $section) {
+    $whois_fields[$section . 'FirstName'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'FirstName', true),
         'type' => 'text',
         'rp' => 'fn',
         'lp' => 'first_name'
-    ],
-    'RegistrantLastName' => [
-        'label' => Language::_('Dynadot.whois.RegistrantLastName', true),
+    ];
+    $whois_fields[$section . 'LastName'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'LastName', true),
         'type' => 'text',
         'rp' => 'ln',
         'lp' => 'last_name'
-    ],
-    'RegistrantOrganization' => [
-        'label' => Language::_('Dynadot.whois.RegistrantOrganization', true),
+    ];
+    $whois_fields[$section . 'Organization'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'Organization', true),
         'type' => 'text',
         'rp' => 'cp',
         'lp' => 'company'
-    ],
-    'RegistrantAddress1' => [
-        'label' => Language::_('Dynadot.whois.RegistrantAddress1', true),
+    ];
+    $whois_fields[$section . 'Address1'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'Address1', true),
         'type' => 'text',
         'rp' => 'ad',
         'lp' => 'address1'
-    ],
-    'RegistrantAddress2' => [
-        'label' => Language::_('Dynadot.whois.RegistrantAddress2', true),
+    ];
+    $whois_fields[$section . 'Address2'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'Address2', true),
         'type' => 'text',
         'rp' => 'ad2',
         'lp' => 'address2'
-    ],
-    'RegistrantCity' => [
-        'label' => Language::_('Dynadot.whois.RegistrantCity', true),
+    ];
+    $whois_fields[$section . 'City'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'City', true),
         'type' => 'text',
         'rp' => 'cy',
         'lp' => 'city'
-    ],
-    'RegistrantStateProvince' => [
-        'label' => Language::_('Dynadot.whois.RegistrantStateProvince', true),
+    ];
+    $whois_fields[$section . 'StateProvince'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'StateProvince', true),
         'type' => 'text',
         'rp' => 'st',
         'lp' => 'state'
-    ],
-    'RegistrantPostalCode' => [
-        'label' => Language::_('Dynadot.whois.RegistrantPostalCode', true),
+    ];
+    $whois_fields[$section . 'PostalCode'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'PostalCode', true),
         'type' => 'text',
         'rp' => 'zp',
         'lp' => 'zip'
-    ],
-    'RegistrantCountry' => [
-        'label' => Language::_('Dynadot.whois.RegistrantCountry', true),
+    ];
+    $whois_fields[$section . 'Country'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'Country', true),
         'type' => 'text',
         'rp' => 'ct',
         'lp' => 'country'
-    ],
-    'RegistrantPhone' => [
-        'label' => Language::_('Dynadot.whois.RegistrantPhone', true),
+    ];
+    $whois_fields[$section . 'Phone'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'Phone', true),
         'type' => 'text',
         'rp' => 'ph',
         'lp' => 'phone'
-    ],
-    'RegistrantEmailAddress' => [
-        'label' => Language::_('Dynadot.whois.RegistrantEmailAddress', true),
+    ];
+    $whois_fields[$section . 'EmailAddress'] = [
+        'label' => Language::_('Dynadot.whois.' . $section . 'EmailAddress', true),
         'type' => 'text',
         'rp' => 'em',
         'lp' => 'email'
-    ]
-]);
+    ];
+}
+
+Configure::set('Dynadot.whois_fields', $whois_fields);
 
 Configure::set('Dynadot.dns_records', [
     'A' => 'A',

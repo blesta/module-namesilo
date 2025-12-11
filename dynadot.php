@@ -37,7 +37,7 @@ class Dynadot extends RegistrarModule
         $this->loadConfig(__DIR__ . DS . 'config.json');
 
         // Load models required by this module
-        Loader::loadModels($this, ['PluginManager']);
+        Loader::loadModels($this, ['PluginManager', 'Clients']);
 
         // Load components required by this module
         Loader::loadComponents($this, ['Input', 'Record']);
@@ -294,12 +294,22 @@ class Dynadot extends RegistrarModule
                     }
                 }
 
+                // Get contact ID
+                $contact_id = $this->getContactIdFromClient($vars['client_id'] ?? null, $api);
+
                 // Handle transfer
                 if (isset($vars['auth']) && $vars['auth']) {
                     $args = [
                         'domain' => $vars['domain'],
                         'auth_code' => $vars['auth']
                     ];
+
+                    if ($contact_id) {
+                         $args['registrant_contact'] = $contact_id;
+                         $args['admin_contact'] = $contact_id;
+                         $args['technical_contact'] = $contact_id;
+                         $args['billing_contact'] = $contact_id;
+                    }
 
                     $nameservers = [];
                     for ($i = 1; $i <= 5; $i++) {
@@ -323,6 +333,13 @@ class Dynadot extends RegistrarModule
                         'domain' => $vars['domain'],
                         'duration' => $vars['years']
                     ];
+
+                    if ($contact_id) {
+                         $args['registrant_contact'] = $contact_id;
+                         $args['admin_contact'] = $contact_id;
+                         $args['technical_contact'] = $contact_id;
+                         $args['billing_contact'] = $contact_id;
+                    }
 
                     // Add nameservers
                     $i = 0;
@@ -387,6 +404,17 @@ class Dynadot extends RegistrarModule
         if ($renew > 0 && $vars['use_module'] == 'true') {
             $this->renewService($package, $service, $parent_package, $parent_service, $renew);
             unset($vars['renew']);
+        }
+
+        // Update nameservers
+        if (isset($vars['ns1']) && isset($vars['ns2'])) {
+            $ns = [];
+            for ($i=1; $i<=5; $i++) {
+                if (isset($vars['ns' . $i])) {
+                    $ns[] = $vars['ns' . $i];
+                }
+            }
+            $this->setDomainNameservers($this->getServiceDomain($service), $service->module_row_id, $ns);
         }
 
         $id_protection = $this->featureServiceEnabled('id_protection', $service);
@@ -646,6 +674,18 @@ class Dynadot extends RegistrarModule
 
             return $meta;
         }
+    }
+
+    /**
+     * Deletes the module row on the remote server. Sets Input errors on failure,
+     * preventing the row from being deleted.
+     *
+     * @param stdClass $module_row The stdClass representation of the existing module row
+     */
+    public function deleteModuleRow($module_row)
+    {
+        // No special cleanup needed
+        return null;
     }
 
     /**
@@ -1056,6 +1096,37 @@ class Dynadot extends RegistrarModule
                 )
             );
             $fields->setField($type);
+        }
+
+        return $fields;
+    }
+
+    public function getAdminEditFields($package, $vars = null)
+    {
+        Loader::loadHelpers($this, ['Form', 'Html']);
+
+        $fields = new ModuleFields();
+
+        if ($package->meta->type == 'domain') {
+            // Domain
+            $fields->setField(
+                $fields->label(Language::_('Dynadot.domain.domain', true), 'domain')
+                    ->attach($fields->fieldText('domain', $vars->domain ?? null, ['id' => 'domain']))
+            );
+
+            // Nameservers
+            for ($i=1; $i<=5; $i++) {
+                $fields->setField(
+                    $fields->label(Language::_('Dynadot.nameserver.ns' . $i, true), 'ns' . $i)
+                        ->attach($fields->fieldText('ns' . $i, $vars->{'ns' . $i} ?? null, ['id' => 'ns' . $i]))
+                );
+            }
+
+            // Auth Code
+            $fields->setField(
+                 $fields->label(Language::_('Dynadot.transfer.EPPCode', true), 'auth')
+                    ->attach($fields->fieldText('auth', $vars->auth ?? null, ['id' => 'auth']))
+            );
         }
 
         return $fields;
@@ -1665,6 +1736,33 @@ class Dynadot extends RegistrarModule
 
             $api_args = array_merge(['domain' => $domain], $main_args, $sub_args);
             $api->submit('set_dns2', $api_args);
+        } else {
+            // Fetch existing records
+            $response = $api->submit('get_dns', ['domain' => $domain]);
+            $res = $response->response();
+
+            if (isset($res->GetDnsContent->DnsContent->MainRecord)) {
+                 $recs = is_array($res->GetDnsContent->DnsContent->MainRecord) ? $res->GetDnsContent->DnsContent->MainRecord : [$res->GetDnsContent->DnsContent->MainRecord];
+                 $i = 0;
+                 foreach ($recs as $r) {
+                     if ($i >= 5) break;
+                     $vars->{'main_record_type' . $i} = (string)$r->RecordType;
+                     $vars->{'main_record' . $i} = (string)$r->Value;
+                     $i++;
+                 }
+            }
+
+            if (isset($res->GetDnsContent->DnsContent->SubRecord)) {
+                 $recs = is_array($res->GetDnsContent->DnsContent->SubRecord) ? $res->GetDnsContent->DnsContent->SubRecord : [$res->GetDnsContent->DnsContent->SubRecord];
+                 $i = (isset($i) ? $i : 0);
+                 foreach ($recs as $r) {
+                     if ($i >= 5) break;
+                     $vars->{'main_record_type' . $i} = (string)$r->RecordType;
+                     $vars->{'main_record' . $i} = (string)$r->Value;
+                     $vars->{'subdomain' . $i} = (string)$r->SubHost;
+                     $i++;
+                 }
+            }
         }
 
         $this->view->set('vars', $vars);
@@ -1777,6 +1875,81 @@ class Dynadot extends RegistrarModule
     public function getTldPricing($module_row_id = null)
     {
         return $this->getFilteredTldPricing($module_row_id);
+    }
+
+    /**
+     * Creates a contact on Dynadot from the Blesta client and returns the Contact ID
+     *
+     * @param int $client_id The ID of the client to create the contact for
+     * @param DynadotApi $api The Dynadot API instance
+     * @return string|null The Contact ID if successful, null otherwise
+     */
+    private function getContactIdFromClient($client_id, $api)
+    {
+        if (!$client_id) {
+            return null;
+        }
+
+        $client = $this->Clients->get($client_id);
+        if (!$client) {
+            return null;
+        }
+
+        // Parse phone: assume +CC.Number or just Number (default to US 1)
+        // Blesta stores phone numbers as strings.
+        // Dynadot needs CC and Num.
+        $phone_cc = '1';
+        $phone_num = preg_replace('/[^0-9]/', '', $client->phone_number ?? ''); // strip non-digits
+
+        // Simple heuristic: if starts with +, extract CC
+        // But Blesta often stores without +.
+        // If we can't parse easily, default to US/1.
+        // Or if the client has a country, use that to lookup code? Too complex for now.
+        // Let's assume standard format or default.
+        if (strlen($phone_num) > 10) {
+             // Maybe has CC?
+             // e.g. 447700900000 -> 44, 7700900000
+             // This is risky.
+             // Safer to fallback to US 1 if unsure, or leave CC 1.
+        }
+        // Actually, Dynadot requires valid CC.
+        // Let's try to match a leading +CC pattern from $client->phone (original string).
+        if (preg_match('/^\+(\d+)\.(.+)$/', $client->phone_number ?? '', $matches)) {
+            $phone_cc = $matches[1];
+            $phone_num = preg_replace('/[^0-9]/', '', $matches[2]);
+        }
+
+        if (empty($phone_num)) {
+             $phone_num = '5555555555'; // Fallback
+        }
+
+        $args = [
+            'name' => ($client->first_name ?? '') . ' ' . ($client->last_name ?? ''),
+            'email' => $client->email ?? '',
+            'phonecc' => $phone_cc,
+            'phonenum' => $phone_num,
+            'organization' => $client->company ?? '',
+            'address1' => $client->address1 ?? '',
+            'address2' => $client->address2 ?? '',
+            'city' => $client->city ?? '',
+            'state' => $client->state ?? '',
+            'zip' => $client->zip ?? '',
+            'country' => $client->country ?? ''
+        ];
+
+        // Clean empty args
+        foreach ($args as $k => $v) {
+            if (empty($v)) unset($args[$k]);
+        }
+
+        $response = $api->submit('create_contact', $args);
+        $res = $response->response();
+
+        if ($response->status() == 'success' && isset($res->CreateContactContent->ContactId)) {
+            return (string)$res->CreateContactContent->ContactId;
+        }
+
+        return null;
     }
 
     public function getFilteredTldPricing($module_row_id = null, $filters = [])

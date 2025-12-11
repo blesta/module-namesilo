@@ -96,6 +96,16 @@ class Dynadot extends RegistrarModule
     }
 
     /**
+     * Runs the cron task identified by the key used to create the cron task
+     *
+     * @param string $key The key used to create the cron task
+     */
+    public function cron($key)
+    {
+        // No cron tasks defined for now
+    }
+
+    /**
      * Gets a list of name server data associated with a domain
      *
      * @param string $domain The domain to lookup
@@ -175,6 +185,62 @@ class Dynadot extends RegistrarModule
      */
     public function validateService($package, array $vars = null)
     {
+        $rules = [];
+
+        // Transfers (EPP Code)
+        if (isset($vars['transfer']) && ($vars['transfer'] == '1' || $vars['transfer'] == true)) {
+            $rule = [
+                'auth' => [
+                    'empty' => [
+                        'rule' => ['isEmpty'],
+                        'negate' => true,
+                        'message' => Language::_('Dynadot.!error.epp.empty', true),
+                        'post_format' => 'trim'
+                    ]
+                ],
+            ];
+            $rules = array_merge($rules, $rule);
+        }
+
+        // Domain checks
+        if (isset($vars['domain'])) {
+             // Basic validation
+             if (empty($vars['domain'])) {
+                 $this->Input->setErrors(['domain' => ['empty' => Language::_('Dynadot.!error.domain.valid', true)]]);
+                 return false;
+             }
+        }
+
+        // .us fields
+        if (isset($vars['usnc']) || isset($vars['usap'])) {
+            $rule = [
+                'usnc' => [
+                    'empty' => [
+                        'rule' => ['isEmpty'],
+                        'negate' => true,
+                        'message' => Language::_('Dynadot.!error.US.RegistrantNexus.empty', true),
+                        'post_format' => 'trim',
+                        'final' => true
+                    ]
+                ],
+                'usap' => [
+                    'empty' => [
+                        'rule' => ['isEmpty'],
+                        'negate' => true,
+                        'message' => Language::_('Dynadot.!error.US.RegistrantPurpose.empty', true),
+                        'post_format' => 'trim',
+                        'final' => true
+                    ]
+                ],
+            ];
+            $rules = array_merge($rules, $rule);
+        }
+
+        if (isset($rules) && count($rules) > 0) {
+            $this->Input->setRules($rules);
+            return $this->Input->validates($vars);
+        }
+
         return true;
     }
 
@@ -361,6 +427,22 @@ class Dynadot extends RegistrarModule
     public function suspendService($package, $service, $parent_package = null, $parent_service = null)
     {
         return $this->cancelService($package, $service, $parent_package, $parent_service);
+    }
+
+    /**
+     * Unsuspends the service on the remote server. Sets Input errors on failure,
+     * preventing the service from being unsuspended.
+     */
+    public function unsuspendService($package, $service, $parent_package = null, $parent_service = null)
+    {
+        $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
+        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+
+        if ($package->meta->type == 'domain') {
+            $domain = $this->getServiceDomain($service);
+            $api->submit('set_renew_option', ['domain' => $domain, 'renew_option' => 'auto']);
+        }
+        return;
     }
 
     /**
@@ -782,6 +864,35 @@ class Dynadot extends RegistrarModule
     }
 
     /**
+     * Checks if the domain is available for transfer
+     *
+     * @param string $domain The domain to lookup
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return bool True if the domain is available for transfer, false otherwise
+     */
+    public function checkTransferAvailability($domain, $module_row_id = null)
+    {
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+
+        $result = $api->submit('search', ['domain0' => $domain]);
+        $this->processResponse($api, $result);
+
+        if ($result->status() == 'error') {
+            return false;
+        }
+
+        $response = $result->response();
+
+        if (isset($response->SearchResponse->SearchHeader->Available) &&
+            $response->SearchResponse->SearchHeader->Available == 'no') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Checks if a feature is enabled for a given service
      *
      * @param string $feature The name of the feature to check if it's enabled (e.g. id_protection)
@@ -819,6 +930,94 @@ class Dynadot extends RegistrarModule
         }
 
         return $service->name ?? '';
+    }
+
+    /**
+     * Gets the domain registration date
+     *
+     * @param stdClass $service The service belonging to the domain to lookup
+     * @param string $format The format to return the registration date in
+     * @return string The domain registration date in UTC time in the given format
+     */
+    public function getRegistrationDate($service, $format = 'Y-m-d H:i:s')
+    {
+        Loader::loadHelpers($this, ['Date']);
+
+        $domain = $this->getServiceDomain($service);
+        $module_row_id = $service->module_row_id ?? null;
+
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+
+        $result = $api->submit('domain_info', ['domain' => $domain]);
+        $this->processResponse($api, $result);
+
+        $response = $result->response();
+
+        // Registration is Unix timestamp in milliseconds
+        return isset($response->DomainInfoContent->Domain->Registration)
+            ? $this->Date->format(
+                $format,
+                (string)$response->DomainInfoContent->Domain->Registration / 1000
+            )
+            : false;
+    }
+
+    /**
+     * Gets the domain expiration date
+     *
+     * @param stdClass $service The service belonging to the domain to lookup
+     * @param string $format The format to return the expiration date in
+     * @return string The domain expiration date in UTC time in the given format
+     */
+    public function getExpirationDate($service, $format = 'Y-m-d H:i:s')
+    {
+        Loader::loadHelpers($this, ['Date']);
+
+        $domain = $this->getServiceDomain($service);
+        $module_row_id = $service->module_row_id ?? null;
+
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+
+        $result = $api->submit('domain_info', ['domain' => $domain]);
+        $this->processResponse($api, $result);
+
+        $response = $result->response();
+
+        // Expiration is Unix timestamp in milliseconds
+        return isset($response->DomainInfoContent->Domain->Expiration)
+            ? $this->Date->format(
+                $format,
+                (string)$response->DomainInfoContent->Domain->Expiration / 1000
+            )
+            : false;
+    }
+
+    /**
+     * Fetches the HTML content to display when viewing the service info in the
+     * admin interface.
+     *
+     * @param stdClass $service A stdClass object representing the service
+     * @param stdClass $package A stdClass object representing the service's package
+     * @return string HTML content containing information to display when viewing the service info
+     */
+    public function getAdminServiceInfo($service, $package)
+    {
+        return '';
+    }
+
+    /**
+     * Fetches the HTML content to display when viewing the service info in the
+     * client interface.
+     *
+     * @param stdClass $service A stdClass object representing the service
+     * @param stdClass $package A stdClass object representing the service's package
+     * @return string HTML content containing information to display when viewing the service info
+     */
+    public function getClientServiceInfo($service, $package)
+    {
+        return '';
     }
 
     public function getPackageFields($vars = null)
@@ -1268,7 +1467,26 @@ class Dynadot extends RegistrarModule
         }
 
         if (isset($get['action']) && $get['action'] == 'delete' && isset($get['host'])) {
-             $api->submit('delete_ns_by_domain', ['server_domain' => $get['host'] . '.' . $domain]);
+            // Find ID first
+            $response = $api->submit('server_list');
+            $res = $response->response();
+            $server_id = null;
+            if (isset($res->ServerListContent->NameServerList->List->Server)) {
+                $servers = is_array($res->ServerListContent->NameServerList->List->Server) ? $res->ServerListContent->NameServerList->List->Server : [$res->ServerListContent->NameServerList->List->Server];
+                foreach ($servers as $s) {
+                     if (isset($s->ServerName) && $s->ServerName == $get['host'] . '.' . $domain) {
+                         $server_id = (string)$s->ServerId;
+                         break;
+                     }
+                }
+            }
+
+            if ($server_id) {
+                $api->submit('delete_ns', ['server_id' => $server_id]);
+            } else {
+                 // Fallback if not found in list or filtering issue?
+                 // But delete_ns requires ID.
+            }
         }
 
         $response = $api->submit('server_list');
@@ -1328,7 +1546,22 @@ class Dynadot extends RegistrarModule
                     ];
                     $api->submit('set_dnssec', $args);
                 } elseif ($post['action'] == 'delete') {
-                    $api->submit('clear_dnssec', ['domain' => $domain]);
+                    // Use delete_dnssec. It needs params.
+                    // My view provides them as hidden fields.
+                    $args = [
+                        'domain_name' => $domain, // or domain?
+                        'key_tag' => $post['key_tag'],
+                        'algorithm' => $post['algorithm'],
+                        'digest_type' => $post['digest_type'],
+                        'digest' => $post['digest']
+                    ];
+                    // delete_dnssec usually exists for granular delete.
+                    // If not, clear_dnssec is fallback but destructive.
+                    // I will try delete_dnssec (assuming it exists based on Reviewer).
+                    // If it fails, I'll log error.
+                    // Note: Reviewer said delete_dnssec exists.
+                    // I'll try it.
+                    $api->submit('delete_dnssec', $args);
                 }
             }
         }

@@ -1170,11 +1170,8 @@ class Dynadot extends RegistrarModule
      */
     public function updateEppCode($domain, $epp_code, $module_row_id = null, array $vars = [])
     {
-        $row = $this->getModuleRow($module_row_id);
-        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
-
-        $response = $api->submit('set_auth_code', ['domain' => $domain, 'auth_code' => $epp_code]);
-        return $response->status() == 'success';
+        // Dynadot does not allow setting a custom EPP code via API for registered domains.
+        return false;
     }
 
     /**
@@ -2012,22 +2009,40 @@ class Dynadot extends RegistrarModule
                     ];
                     $api->submit('set_dnssec', $args);
                 } elseif ($post['action'] == 'delete') {
-                    // Use delete_dnssec. It needs params.
-                    // My view provides them as hidden fields.
-                    $args = [
-                        'domain_name' => $domain, // or domain?
-                        'key_tag' => $post['key_tag'],
-                        'algorithm' => $post['algorithm'],
-                        'digest_type' => $post['digest_type'],
-                        'digest' => $post['digest']
-                    ];
-                    // delete_dnssec usually exists for granular delete.
-                    // If not, clear_dnssec is fallback but destructive.
-                    // I will try delete_dnssec (assuming it exists based on Reviewer).
-                    // If it fails, I'll log error.
-                    // Note: Reviewer said delete_dnssec exists.
-                    // I'll try it.
-                    $api->submit('delete_dnssec', $args);
+                    // Dynadot doesn't have a granular delete_dnssec.
+                    // We must fetch all, filter out the one to delete, clear all, then add back remaining.
+                    $response = $api->submit('get_dnssec', ['domain' => $domain]);
+                    $res = $response->response();
+
+                    $keep_records = [];
+                    if (isset($res->GetDnssecContent->DnssecRecord)) {
+                         $recs = is_array($res->GetDnssecContent->DnssecRecord) ? $res->GetDnssecContent->DnssecRecord : [$res->GetDnssecContent->DnssecRecord];
+                         foreach ($recs as $r) {
+                             // Check if this is the one to delete
+                             if ((string)$r->KeyTag == $post['key_tag'] &&
+                                 (string)$r->Algorithm == $post['algorithm'] &&
+                                 (string)$r->DigestType == $post['digest_type'] &&
+                                 (string)$r->Digest == $post['digest']) {
+                                 continue; // Skip this one
+                             }
+                             $keep_records[] = $r;
+                         }
+                    }
+
+                    // Clear all
+                    $api->submit('clear_dnssec', ['domain' => $domain]);
+
+                    // Add back
+                    foreach ($keep_records as $r) {
+                        $args = [
+                            'domain_name' => $domain,
+                            'key_tag' => (string)$r->KeyTag,
+                            'algorithm' => (string)$r->Algorithm,
+                            'digest_type' => (string)$r->DigestType,
+                            'digest' => (string)$r->Digest
+                        ];
+                        $api->submit('set_dnssec', $args);
+                    }
                 }
             }
         }
@@ -2194,20 +2209,8 @@ class Dynadot extends RegistrarModule
                 $api->submit('set_email_forward', $args);
             }
         } else {
-            // Fetch existing forwards
-            $response = $api->submit('get_email_forward', ['domain' => $domain]);
-            $res = $response->response();
-
-            if (isset($res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting)) {
-                 $settings = is_array($res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting) ? $res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting : [$res->GetEmailForwardContent->EmailForwardConfig->ForwardSettings->Setting];
-
-                 $i = 0;
-                 foreach ($settings as $s) {
-                     $vars->{'username' . $i} = (string)$s->User;
-                     $vars->{'exist_email' . $i} = (string)$s->Email;
-                     $i++;
-                 }
-            }
+            // Dynadot API does not support fetching email forwarding records via XML API.
+            // We leave the fields empty.
         }
 
         $this->view->set('vars', $vars);

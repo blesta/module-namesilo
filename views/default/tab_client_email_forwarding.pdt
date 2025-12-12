@@ -3,6 +3,9 @@
 		<div class="title_row first">
 			<h3><?php $this->_('Dynadot.tab_email_forwarding.title_list'); ?></h3>
 		</div>
+        <div class="alert alert-info">
+            <p><?php $this->_('Dynadot.tab_email_forwarding.help_text_no_fetch'); ?></p>
+        </div>
 		<div class="links_row">
 			<a class="btn btn-default pull-right btn-sm" href="#" id="add_forward"><i class="fas fa-plus"></i> <?php $this->_('Dynadot.tab_email_forwarding.add_record'); ?></a>
 		</div>

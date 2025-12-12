@@ -1,123 +1,95 @@
-    <div id="dns-records">
-        <div class="title_row first">
-            <h3><?php $this->_('Namesilo.tab_dnsrecord.title_list');?></h3>
-        </div>
-        <p><?php $this->_('Namesilo.tab_dnsrecord.help_text_1');?></p>
-        <table class="table">
-            <thead>
-                <tr class="heading_row">
-                    <td><span><?php $this->_('Namesilo.dnsrecord.record_type');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.host');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.value');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.distance');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.ttl');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.field_delete');?></span></td>
-                </tr>
-            </thead>
-            <tbody>
-            <?php
-            if (count($vars->records) > 0 && isset($vars->records)) {
-                $i = 0;
-                foreach ($vars->records as $record) {
+
+	<div class="pad">
+		<div class="title_row first">
+			<h3><?php $this->_('Dynadot.tab_dnsrecords.title_list'); ?></h3>
+		</div>
+		<div class="links_row">
+			<a class="btn btn-default pull-right btn-sm" href="#" id="add_dns_record"><i class="fas fa-plus"></i> <?php $this->_('Dynadot.tab_dnsrecords.add_record'); ?></a>
+		</div>
+		<table class="table" id="dns_records">
+			<thead>
+				<tr class="heading_row">
+					<td><?php $this->_('Dynadot.tab_dnsrecords.record_type'); ?></td>
+					<td><?php $this->_('Dynadot.tab_dnsrecords.host'); ?></td>
+					<td><?php $this->_('Dynadot.tab_dnsrecords.value'); ?></td>
+					<td><?php $this->_('Dynadot.tab_dnsrecords.options'); ?></td>
+				</tr>
+			</thead>
+			<tbody>
+				<?php
+				$i = 0;
+				// Check for existing records in vars
+				$has_records = false;
+				while (isset($vars->{'main_record_type' . $i})) {
+                    $has_records = true;
+					?>
+					<tr>
+						<td><?php $this->Form->fieldSelect('main_record_type' . $i, $vars->record_types, $this->Html->ifSet($vars->{'main_record_type' . $i}), ['class' => 'form-control input-sm']); ?></td>
+						<td><?php $this->Form->fieldText('subdomain' . $i, $this->Html->ifSet($vars->{'subdomain' . $i}), ['class' => 'form-control input-sm', 'placeholder' => 'subdomain']); ?></td>
+						<td><?php $this->Form->fieldText('main_record' . $i, $this->Html->ifSet($vars->{'main_record' . $i}), ['class' => 'form-control input-sm']); ?></td>
+						<td><a href="#" class="manage delete_row"><i class="fas fa-trash-alt"></i> <?php $this->_('Blesta.delete'); ?></a></td>
+					</tr>
+					<?php
+					$i++;
+				}
+
+                // Add one empty row if none exist or just as template (JS will handle add)
+                if (!$has_records) {
                     ?>
-                    <tr<?php echo ($i % 2 == 1) ? ' class="odd_row"' : ''?>>
-                        <td><?php echo (isset($record['type']) ? $record['type'] : null);?></td>
-                        <td><?php echo (isset($record['host']) ? $record['host'] : null);?></td>
-                        <td><?php echo (isset($record['value']) ? $record['value'] : null);?></td>
-                        <td><?php echo (isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] : null);?></td>
-                        <td><?php echo (isset($record['ttl']) ? $record['ttl'] : null);?></td>
-                        <td>
-                            <?php
-                            $this->Form->create(
-                                $this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null)
-                                    . '/' . (isset($service_id) ? $service_id : null) . '/tabDnsRecords/'
-                            );
-                            $this->Form->fieldHidden('record_id', (isset($record['record_id']) ? $record['record_id'] : null));
-
-                            $button_attributes = [
-                                'class' => 'btn btn-sm',
-                                'value' => 'deleteDnsRecord',
-                                'type' => 'submit',
-                            ];
-
-                            $this->Form->fieldButton(
-                                'action',
-                                $this->_('Namesilo.tab_dnssec.field_delete', true),
-                                $button_attributes
-                            );
-
-                            $this->Form->end();
-                            ?>
-                        </td>
-                    </tr>
+					<tr>
+						<td><?php $this->Form->fieldSelect('main_record_type0', $vars->record_types, null, ['class' => 'form-control input-sm']); ?></td>
+						<td><?php $this->Form->fieldText('subdomain0', null, ['class' => 'form-control input-sm', 'placeholder' => 'subdomain']); ?></td>
+						<td><?php $this->Form->fieldText('main_record0', null, ['class' => 'form-control input-sm']); ?></td>
+						<td><a href="#" class="manage delete_row"><i class="fas fa-trash-alt"></i> <?php $this->_('Blesta.delete'); ?></a></td>
+					</tr>
                     <?php
-                    $i++;
+                    $i = 1;
                 }
+				?>
+			</tbody>
+		</table>
+	</div>
+	<div class="button_row">
+		<?php
+		$this->Form->fieldSubmit('save', $this->_('Dynadot.tab_dnsrecords.field_submit', true), ['class' => 'btn btn-primary pull-right']);
+		?>
+	</div>
+	<?php
+	$this->Form->end();
+	?>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    var record_count = <?php echo $i; ?>;
+
+    $('#add_dns_record').click(function(e) {
+        e.preventDefault();
+
+        var clone = $('#dns_records tbody tr').first().clone();
+        clone.find('input, select').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                // Replace index
+                var new_name = name.replace(/\d+$/, record_count);
+                $(this).attr('name', new_name);
+                $(this).attr('id', new_name); // Assume ID matches name
+                $(this).val('');
             }
-            ?>
-            </tbody>
-        </table>
+        });
 
-        <div class="title_row">
-            <h3><?php $this->_('Namesilo.tab_dnsrecord.title_add');?></h3>
-        </div>
-        <?php
-        $this->Form->create(
-            $this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null)
-                . '/' . (isset($service_id) ? $service_id : null) . '/tabDnsRecords/'
-        );
-        ?>
-        <table class="table">
-            <!-- Add New DNS Record -->
-            <thead>
-                <tr class="heading_row">
-                    <td><span><?php $this->_('Namesilo.dnsrecord.record_type');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.host');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.value');?></span></td>
-                    <td class="distance" style="display:none;"><span><?php $this->_('Namesilo.dnsrecord.distance');?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnsrecord.ttl');?></span></td>
-                    <td></td>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options']);?></td>
-                    <td><?php $this->Form->fieldText('host');?></td>
-                    <td><?php $this->Form->fieldText('value');?></td>
-                    <td class="distance" style="display:none;"><?php $this->Form->fieldText('distance', 10);?></td>
-                    <td><?php $this->Form->fieldText('ttl', 7207);?></td>
-                    <td>
-                        <?php
-                        $button_attributes = [
-                            'class' => 'btn btn-primary',
-                            'value' => 'addDnsRecord',
-                            'type' => 'submit',
-                        ];
+        $('#dns_records tbody').append(clone);
+        record_count++;
+    });
 
-                        $this->Form->fieldButton(
-                            'action',
-                            $this->_('Namesilo.tab_dnsrecord.field_add', true),
-                            $button_attributes
-                        );
-                        ?>
-                    </td>
-
-                </tr>
-            </tbody>
-        </table>
-        <?php
-        $this->Form->end();
-        ?>
-    </div>
-
-    <script>
-        $(document).ready(function() {
-            $('[name="record_type"]').on('change', function() {
-                if($(this).val() == 'MX') {
-                    $('.distance').show()
-                } else {
-                    $('.distance').hide()
-                }
-            })
-        })
-    </script>
+    $(document).on('click', '.delete_row', function(e) {
+        e.preventDefault();
+        if ($('#dns_records tbody tr').length > 1) {
+            $(this).closest('tr').remove();
+        } else {
+            // Clear values if it's the last row
+            $(this).closest('tr').find('input').val('');
+            $(this).closest('tr').find('select').prop('selectedIndex', 0);
+        }
+    });
+});
+</script>

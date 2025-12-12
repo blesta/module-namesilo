@@ -1,55 +1,46 @@
     <div class="row panel-fix">
         <div class="col-md-12">
+            <h4><?php $this->_('Dynadot.tab_hosts.title');?></h4>
             <?php
             $this->Form->create();
             ?>
-                <h4><?php $this->_('Namesilo.tab_hosts.title'); ?></h4>
-                <p class="mb-2"><?php $this->_('Namesilo.tab_hosts.desc'); ?></p>
-
-                <div class="table-responsive my-2">
-                    <table class="table table-curved table-striped-alt">
-                        <thead>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th><?php $this->_('Dynadot.tab_hosts.field_hostname');?></th>
+                        <th><?php $this->_('Dynadot.tab_hosts.field_ip');?></th>
+                        <th><?php $this->_('Dynadot.tab_hosts.field_submit');?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    if (isset($vars->hosts) && is_array($vars->hosts)) {
+                        foreach ($vars->hosts as $host) {
+                            ?>
                             <tr>
-                                <th><?php $this->_('Namesilo.tab_hosts.field_hostname'); ?></th>
-                                <th><?php $this->_('Namesilo.tab_hosts.field_ip'); ?></th>
+                                <td><?php echo $this->Html->safe($host->host ?? '');?></td>
+                                <td><?php echo $this->Html->safe($host->ip ?? '');?></td>
+                                <td>
+                                    <a href="<?php echo $this->Html->safe($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabClientHosts/?action=delete&host=' . ($host->host ?? ''));?>" class="btn btn-sm btn-danger"><?php $this->_('Dynadot.tab_hosts.field_delete');?></a>
+                                </td>
                             </tr>
-                        </thead>
-
-                        <?php
-                        foreach ($vars->hosts ?? [] as $host) {
-                        ?>
-                            <tbody>
-                                <?php
-                                foreach ($host->ip as $index => $ip) {
-                                ?>
-                                    <tr>
-                                        <td<?php echo $index !== 0 ? ' class="text-muted"' : ''; ?>><?php echo $host->host . '.' . ($domain ?? ''); ?></td>
-                                        <td><?php $this->Form->fieldText('hosts[' . (isset($host->host) ? $host->host : null) . '][]', $ip); ?></td>
-                                    </tr>
-                                <?php
-                                    }
-                                ?>
-                                <tr>
-                                    <td class="text-muted"></td>
-                                    <td><?php $this->Form->fieldText('hosts[' . (isset($host->host) ? $host->host : null) . '][]'); ?></td>
-                                </tr>
-                            </tbody>
-                        <?php
+                            <?php
                         }
-                        ?>
-
-                        <tbody>
-                            <tr>
-                                <td><?php $this->Form->fieldText('new_host'); echo '.' . $domain; ?></td>
-                                <td><?php $this->Form->fieldText('new_host_ip'); ?></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <button class="btn btn-light float-right" type="submit">
-                    <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_hosts.field_submit'); ?>
-                </button>
+                    }
+                    ?>
+                    <tr>
+                        <td>
+                            <?php $this->Form->fieldText('host', $vars->new_host ?? '', ['class' => 'form-control']); ?>
+                        </td>
+                        <td>
+                            <?php $this->Form->fieldText('ip', $vars->new_ip ?? '', ['class' => 'form-control']); ?>
+                        </td>
+                        <td>
+                            <?php $this->Form->fieldSubmit('save', $this->_('Dynadot.tab_hosts.field_add', true), ['class' => 'btn btn-primary']); ?>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
             <?php
             $this->Form->end();
             ?>

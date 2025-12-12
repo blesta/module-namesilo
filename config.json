@@ -1,20 +1,12 @@
 {
-    "version": "3.4.5",
+    "version": "1.0.0",
     "type": "registrar",
-    "name": "Namesilo.name",
-    "description": "Namesilo.description",
+    "name": "Dynadot.name",
+    "description": "Dynadot.description",
     "authors": [
         {
-            "name": "Phillips Data Inc.",
+            "name": "Blesta",
             "url": "https://www.blesta.com"
-        },
-        {
-            "name": "KnownHost LLC",
-            "url": "https://www.knownhost.com"
-        },
-        {
-            "name": "NETLINK IT SERVICES",
-            "url": "http://www.netlink.ie/"
         }
     ],
     "package": {
@@ -24,9 +16,9 @@
         "name_key": "domain"
     },
     "module": {
-        "row": "Namesilo.module_row",
-        "rows": "Namesilo.module_row_plural",
-        "row_key": "user"
+        "row": "Dynadot.module_row",
+        "rows": "Dynadot.module_row_plural",
+        "row_key": "key"
     },
     "email_tags": {
         "module": [],

@@ -2321,7 +2321,11 @@ class Dynadot extends RegistrarModule
             $list = is_array($result->TldPriceContent->TldContent) ? $result->TldPriceContent->TldContent : [$result->TldPriceContent->TldContent];
             foreach ($list as $item) {
                 if (isset($item->Tld)) {
-                    $tlds[] = '.' . $item->Tld;
+                    $tld = trim($item->Tld);
+                    if (substr($tld, 0, 1) != '.') {
+                        $tld = '.' . $tld;
+                    }
+                    $tlds[] = $tld;
                 }
             }
         }
@@ -2400,7 +2404,10 @@ class Dynadot extends RegistrarModule
 
             foreach ($tlds as $tld_data) {
                 if (isset($tld_data->Tld)) {
-                    $tld = '.' . $tld_data->Tld;
+                    $tld = trim($tld_data->Tld);
+                    if (substr($tld, 0, 1) != '.') {
+                        $tld = '.' . $tld;
+                    }
                     $prices = $tld_data->Price;
 
                     if (isset($filters['tlds']) && !in_array($tld, $filters['tlds'])) {
@@ -2409,12 +2416,17 @@ class Dynadot extends RegistrarModule
 
                     $currency = 'USD';
 
+                    // Ensure prices exist and are valid numbers
+                    $register = isset($prices->Register) ? (float)$prices->Register : 0.00;
+                    $transfer = isset($prices->Transfer) ? (float)$prices->Transfer : 0.00;
+                    $renew = isset($prices->Renew) ? (float)$prices->Renew : 0.00;
+
                     $tld_yearly_prices[$tld][$currency] = [];
                     foreach (range(1, 10) as $years) {
                          $tld_yearly_prices[$tld][$currency][$years] = [
-                            'register' => (float)$prices->Register * $years,
-                            'transfer' => (float)$prices->Transfer * $years,
-                            'renew' => (float)$prices->Renew * $years
+                            'register' => $register * $years,
+                            'transfer' => $transfer * $years,
+                            'renew' => $renew * $years
                         ];
                     }
                 }

@@ -64,7 +64,6 @@ class Dynadot extends RegistrarModule
      */
     public function install()
     {
-        // No special install logic for now
         return [];
     }
 
@@ -297,65 +296,30 @@ class Dynadot extends RegistrarModule
                 // Get contact ID
                 $contact_id = $this->getContactIdFromClient($vars['client_id'] ?? null, $api);
 
+                // Add contact IDs to vars for register/transfer
+                if ($contact_id) {
+                    $vars['registrant_contact'] = $contact_id;
+                    $vars['admin_contact'] = $contact_id;
+                    $vars['technical_contact'] = $contact_id;
+                    $vars['billing_contact'] = $contact_id;
+                }
+
+                // Prepare nameservers
+                $nameservers = [];
+                for ($i = 1; $i <= 5; $i++) {
+                    if (isset($vars['ns' . $i]) && !empty($vars['ns' . $i])) {
+                        $nameservers[] = $vars['ns' . $i];
+                    }
+                }
+                $vars['ns'] = $nameservers;
+
                 // Handle transfer
                 if (isset($vars['auth']) && $vars['auth']) {
-                    $args = [
-                        'domain' => $vars['domain'],
-                        'auth_code' => $vars['auth']
-                    ];
-
-                    if ($contact_id) {
-                         $args['registrant_contact'] = $contact_id;
-                         $args['admin_contact'] = $contact_id;
-                         $args['technical_contact'] = $contact_id;
-                         $args['billing_contact'] = $contact_id;
-                    }
-
-                    $nameservers = [];
-                    for ($i = 1; $i <= 5; $i++) {
-                        if (isset($vars['ns' . $i]) && !empty($vars['ns' . $i])) {
-                            $nameservers[] = $vars['ns' . $i];
-                        }
-                    }
-                    if (!empty($nameservers)) {
-                        $args['name_servers'] = implode(',', $nameservers);
-                    }
-
-                    $response = $api->submit('transfer', $args);
-                    $this->processResponse($api, $response);
-
-                    if ($this->Input->errors()) {
-                        return;
-                    }
+                    $vars['auth_code'] = $vars['auth'];
+                    $this->transferDomain($vars['domain'], $row->id, $vars);
                 } else {
                     // Handle registration
-                    $args = [
-                        'domain' => $vars['domain'],
-                        'duration' => $vars['years']
-                    ];
-
-                    if ($contact_id) {
-                         $args['registrant_contact'] = $contact_id;
-                         $args['admin_contact'] = $contact_id;
-                         $args['technical_contact'] = $contact_id;
-                         $args['billing_contact'] = $contact_id;
-                    }
-
-                    // Add nameservers
-                    $i = 0;
-                    for ($j = 1; $j <= 5; $j++) {
-                        if (isset($vars['ns' . $j]) && !empty($vars['ns' . $j])) {
-                            $args['ns' . $i] = $vars['ns' . $j];
-                            $i++;
-                        }
-                    }
-
-                    $response = $api->submit('register', $args);
-                    $this->processResponse($api, $response);
-
-                    if ($this->Input->errors()) {
-                        return;
-                    }
+                    $this->registerDomain($vars['domain'], $row->id, $vars);
                 }
             }
         }
@@ -398,6 +362,7 @@ class Dynadot extends RegistrarModule
     {
         $row = $this->getModuleRow($service->module_row_id ?? $package->module_row);
         $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+        $domain = $this->getServiceDomain($service);
 
         // Manually renew the domain
         $renew = isset($vars['renew']) ? (int) $vars['renew'] : 0;
@@ -414,7 +379,7 @@ class Dynadot extends RegistrarModule
                     $ns[] = $vars['ns' . $i];
                 }
             }
-            $this->setDomainNameservers($this->getServiceDomain($service), $service->module_row_id, $ns);
+            $this->setDomainNameservers($domain, $service->module_row_id, $ns);
         }
 
         $id_protection = $this->featureServiceEnabled('id_protection', $service);
@@ -423,11 +388,15 @@ class Dynadot extends RegistrarModule
              $whois_privacy = $vars['configoptions']['id_protection'] ? 'yes' : 'no';
 
              $api->submit('set_privacy', [
-                 'domain' => $this->getServiceDomain($service),
+                 'domain' => $domain,
                  'option' => $privacy,
                  'whois_privacy_option' => $whois_privacy
              ]);
         }
+
+        // Handle contact updates if fields are present and different from existing?
+        // Typically editService isn't used for Whois updates in Blesta, but we can support it if needed.
+        // For now, we rely on setDomainContacts via tabWhois.
 
         return null;
     }
@@ -514,14 +483,33 @@ class Dynadot extends RegistrarModule
                 'duration' => $years
             ];
 
-            $response = $api->submit('renew', $vars);
-            $this->processResponse($api, $response);
-
-            if ($this->Input->errors()) {
-                return;
-            }
+            $this->renewDomain($domain, $row->id, $vars);
         }
 
+        return null;
+    }
+
+    /**
+     * Updates the package for the service.
+     *
+     * @param stdClass $package_from A stdClass object representing the current package
+     * @param stdClass $package_to A stdClass object representing the new package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param stdClass $parent_package A stdClass object representing the parent service's selected package
+     *  (if the current service is an addon service)
+     * @param stdClass $parent_service A stdClass object representing the parent service of the service being edited
+     *  (if the current service is an addon service)
+     * @return mixed null to maintain the existing meta fields or a numerically indexed array of meta fields to be
+     *  stored for this service containing:
+     *
+     *      - key The key for this meta field
+     *      - value The value for this key
+     *      - encrypted Whether or not this field should be encrypted (default 0, not encrypted)
+     * @see Module::getModule()
+     * @see Module::getModuleRow()
+     */
+    public function changeServicePackage($package_from, $package_to, $service, $parent_package = null, $parent_service = null)
+    {
         return null;
     }
 
@@ -588,6 +576,19 @@ class Dynadot extends RegistrarModule
         }
 
         return $meta;
+    }
+
+    /**
+     * Deletes the package on the remote server. Sets Input errors on failure,
+     * preventing the package from being deleted.
+     *
+     * @param stdClass $package A stdClass object representing the selected package
+     * @see Module::getModule()
+     * @see Module::getModuleRow()
+     */
+    public function deletePackage($package)
+    {
+        return null;
     }
 
     /**
@@ -951,9 +952,6 @@ class Dynadot extends RegistrarModule
         ];
 
         // Handle contacts
-        // In this context, $vars might contain contact IDs directly or client info?
-        // Standard vars usually contain Whois info.
-        // For now, if called from addService, we injected contact IDs.
         if (isset($vars['registrant_contact'])) $args['registrant_contact'] = $vars['registrant_contact'];
         if (isset($vars['admin_contact'])) $args['admin_contact'] = $vars['admin_contact'];
         if (isset($vars['technical_contact'])) $args['technical_contact'] = $vars['technical_contact'];
@@ -1118,6 +1116,8 @@ class Dynadot extends RegistrarModule
                  'domain' => (string)$d->Name,
                  'created' => isset($d->Registration) ? (string)$d->Registration / 1000 : null,
                  'expires' => isset($d->Expiration) ? (string)$d->Expiration / 1000 : null,
+                 'registration_date' => isset($d->Registration) ? date('Y-m-d H:i:s', (string)$d->Registration / 1000) : null,
+                 'expiration' => isset($d->Expiration) ? date('Y-m-d H:i:s', (string)$d->Expiration / 1000) : null,
                  'locked' => isset($d->Locked) && $d->Locked == 'yes',
                  'private' => isset($d->WhoisPrivacy) && $d->WhoisPrivacy == 'yes',
              ];
@@ -1135,7 +1135,6 @@ class Dynadot extends RegistrarModule
     public function resendTransferEmail($domain, $module_row_id = null)
     {
         // Dynadot doesn't seem to have a specific 'resend transfer email' command publicly documented
-        // return true to simulate success or false if not supported.
         return false;
     }
 
@@ -1148,14 +1147,10 @@ class Dynadot extends RegistrarModule
      */
     public function sendEppEmail($domain, $module_row_id = null)
     {
-        // Dynadot 'get_transfer_auth_code' returns the code, doesn't necessarily email it?
-        // But some registrars do.
-        // We can just implement it as fetching code (if possible) or returning false.
         $row = $this->getModuleRow($module_row_id);
         $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
 
         $response = $api->submit('get_transfer_auth_code', ['domain' => $domain]);
-        // If success, we assume it's "sent" or at least accessible.
         return $response->status() == 'success';
     }
 
@@ -1240,10 +1235,53 @@ class Dynadot extends RegistrarModule
         $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
 
         $args = ['domain' => $domain];
-        if (isset($vars['registrant_contact'])) $args['registrant_contact'] = $vars['registrant_contact'];
-        if (isset($vars['admin_contact'])) $args['admin_contact'] = $vars['admin_contact'];
-        if (isset($vars['technical_contact'])) $args['technical_contact'] = $vars['technical_contact'];
-        if (isset($vars['billing_contact'])) $args['billing_contact'] = $vars['billing_contact'];
+
+        // Check if we are receiving raw contact data (arrays) or contact IDs
+        // Blesta core typically sends contact arrays (e.g. ['FirstName' => ...]) keyed by type (e.g. 'Registrant')
+
+        $types = ['Registrant', 'Admin', 'Technical', 'Billing'];
+        foreach ($types as $type) {
+            $key_id = strtolower($type) . '_contact';
+
+            // If contact ID is passed directly
+            if (isset($vars[$key_id])) {
+                $args[$key_id] = $vars[$key_id];
+                continue;
+            }
+
+            // If contact data is passed, we must create/update a contact and get ID
+            if (isset($vars[$type]) && is_array($vars[$type])) {
+                // We need to flatten this or handle it.
+                // Note: This logic depends on what fields Blesta sends.
+                // Assuming standard Blesta array structure.
+
+                // Helper to create contact
+                $contact_id = $this->createContact($vars[$type], $api);
+                if ($contact_id) {
+                    $args[$key_id] = $contact_id;
+                }
+            } elseif (isset($vars[$type . 'FirstName'])) {
+                // Flattened structure sometimes sent by custom forms
+                // Build array
+                 $contact_data = [
+                     'first_name' => $vars[$type . 'FirstName'] ?? '',
+                     'last_name' => $vars[$type . 'LastName'] ?? '',
+                     'email' => $vars[$type . 'EmailAddress'] ?? '',
+                     'phone' => $vars[$type . 'Phone'] ?? '',
+                     'address1' => $vars[$type . 'Address1'] ?? '',
+                     'address2' => $vars[$type . 'Address2'] ?? '',
+                     'city' => $vars[$type . 'City'] ?? '',
+                     'state' => $vars[$type . 'StateProvince'] ?? '',
+                     'zip' => $vars[$type . 'PostalCode'] ?? '',
+                     'country' => $vars[$type . 'Country'] ?? '',
+                     'company' => $vars[$type . 'Organization'] ?? '',
+                 ];
+                 $contact_id = $this->createContact($contact_data, $api);
+                 if ($contact_id) {
+                    $args[$key_id] = $contact_id;
+                 }
+            }
+        }
 
         if (count($args) > 1) {
             $response = $api->submit('set_whois', $args);
@@ -1251,6 +1289,52 @@ class Dynadot extends RegistrarModule
         }
 
         return false;
+    }
+
+    /**
+     * Helper to create a contact on Dynadot and return ID
+     *
+     * @param array $data Contact data
+     * @param DynadotApi $api API instance
+     * @return string|null Contact ID
+     */
+    private function createContact($data, $api)
+    {
+        $phone = $data['phone'] ?? $data['Phone'] ?? '';
+        $phone_cc = '1';
+        $phone_num = preg_replace('/[^0-9]/', '', $phone);
+
+        if (preg_match('/^\+(\d+)\.(.+)$/', $phone, $matches)) {
+            $phone_cc = $matches[1];
+            $phone_num = preg_replace('/[^0-9]/', '', $matches[2]);
+        }
+
+        $args = [
+            'name' => trim(($data['first_name'] ?? $data['FirstName'] ?? '') . ' ' . ($data['last_name'] ?? $data['LastName'] ?? '')),
+            'email' => $data['email'] ?? $data['EmailAddress'] ?? '',
+            'phonecc' => $phone_cc,
+            'phonenum' => $phone_num,
+            'organization' => $data['company'] ?? $data['Organization'] ?? '',
+            'address1' => $data['address1'] ?? $data['Address1'] ?? '',
+            'address2' => $data['address2'] ?? $data['Address2'] ?? '',
+            'city' => $data['city'] ?? $data['City'] ?? '',
+            'state' => $data['state'] ?? $data['StateProvince'] ?? '',
+            'zip' => $data['zip'] ?? $data['PostalCode'] ?? '',
+            'country' => $data['country'] ?? $data['Country'] ?? ''
+        ];
+
+        // Remove empty
+        foreach ($args as $k => $v) {
+            if (empty($v)) unset($args[$k]);
+        }
+
+        $response = $api->submit('create_contact', $args);
+        $res = $response->response();
+
+        if ($response->status() == 'success' && isset($res->CreateContactContent->ContactId)) {
+            return (string)$res->CreateContactContent->ContactId;
+        }
+        return null;
     }
 
     /**
@@ -1701,67 +1785,75 @@ class Dynadot extends RegistrarModule
         }
 
         if (!empty($post)) {
+            // Refactored to use createContact and setDomainContacts logic essentially
+            // But since this is a tab specific view, we can keep using createContact logic.
+
             $contact_ids = [];
 
             foreach ($sections as $section) {
-                $contact_args = [];
                 $prefix = $section;
 
-                $fn = $post[$prefix . 'FirstName'] ?? '';
-                $ln = $post[$prefix . 'LastName'] ?? '';
-                $contact_args['name'] = trim($fn . ' ' . $ln);
-                $contact_args['email'] = $post[$prefix . 'EmailAddress'] ?? '';
+                // Build array for createContact
+                $contact_data = [
+                    'first_name' => $post[$prefix . 'FirstName'] ?? '',
+                    'last_name' => $post[$prefix . 'LastName'] ?? '',
+                    'email' => $post[$prefix . 'EmailAddress'] ?? '',
+                    'phone' => $post[$prefix . 'Phone'] ?? '',
+                    'company' => $post[$prefix . 'Organization'] ?? '',
+                    'address1' => $post[$prefix . 'Address1'] ?? '',
+                    'address2' => $post[$prefix . 'Address2'] ?? '',
+                    'city' => $post[$prefix . 'City'] ?? '',
+                    'state' => $post[$prefix . 'StateProvince'] ?? '',
+                    'zip' => $post[$prefix . 'PostalCode'] ?? '',
+                    'country' => $post[$prefix . 'Country'] ?? ''
+                ];
 
-                $phone = $post[$prefix . 'Phone'] ?? '';
-                if (preg_match('/^\+(\d+)\.(.+)$/', $phone, $matches)) {
-                    $contact_args['phonecc'] = $matches[1];
-                    $contact_args['phonenum'] = $matches[2];
-                } else {
-                    $contact_args['phonecc'] = '1';
-                    $contact_args['phonenum'] = $phone;
-                }
+                // Check if we are updating existing contact?
+                // Dynadot contacts are technically separate entities.
+                // If we edit, we usually create new and assign, or edit existing if we know it's not shared.
+                // Safest for modules is usually create new to avoid side effects, or edit if we are sure.
+                // The previous code tried to edit if ID exists.
 
-                $contact_args['organization'] = $post[$prefix . 'Organization'] ?? '';
-                $contact_args['address1'] = $post[$prefix . 'Address1'] ?? '';
-                $contact_args['address2'] = $post[$prefix . 'Address2'] ?? '';
-                $contact_args['city'] = $post[$prefix . 'City'] ?? '';
-                $contact_args['state'] = $post[$prefix . 'StateProvince'] ?? '';
-                $contact_args['zip'] = $post[$prefix . 'PostalCode'] ?? '';
-                $contact_args['country'] = $post[$prefix . 'Country'] ?? '';
-
-                $response = null;
                 $cid = $current_ids[$section] ?? 0;
+                $response = null;
 
-                if ($cid > 0) {
-                    // Update existing
-                    $contact_args['contact_id'] = $cid;
-                    $response = $api->submit('edit_contact', $contact_args);
-                    // On success, ID stays the same
-                    if ($response->status() == 'success') {
-                        $contact_ids[strtolower($section) . '_contact'] = $cid;
-                    }
-                } else {
-                    // Create new
-                    $response = $api->submit('create_contact', $contact_args);
-
-                    if ($response->status() == 'success') {
-                        $res = $response->response();
-                        if (isset($res->CreateContactContent->ContactId)) {
-                            $contact_ids[strtolower($section) . '_contact'] = (string)$res->CreateContactContent->ContactId;
-                        }
-                    }
+                // Parse phone for update
+                $phone = $contact_data['phone'];
+                $phone_cc = '1';
+                $phone_num = preg_replace('/[^0-9]/', '', $phone);
+                if (preg_match('/^\+(\d+)\.(.+)$/', $phone, $matches)) {
+                    $phone_cc = $matches[1];
+                    $phone_num = preg_replace('/[^0-9]/', '', $matches[2]);
                 }
 
-                if ($response && $response->status() != 'success') {
-                     // If update failed, maybe try create? Or report error.
-                     // Report error for now.
-                     $this->Input->setErrors(['errors' => $response->errors()]);
-                     // Return early to show errors
-                     $vars = (object)$post;
-                     $this->view->set('vars', $vars);
-                     $this->view->set('fields', $whois_fields);
-                     $this->view->setDefaultView(self::$defaultModuleView);
-                     return $this->view->fetch();
+                // Dynadot edit_contact requires ContactId
+                if ($cid > 0) {
+                     $args = [
+                        'contact_id' => $cid,
+                        'name' => trim($contact_data['first_name'] . ' ' . $contact_data['last_name']),
+                        'email' => $contact_data['email'],
+                        'phonecc' => $phone_cc,
+                        'phonenum' => $phone_num,
+                        'organization' => $contact_data['company'],
+                        'address1' => $contact_data['address1'],
+                        'address2' => $contact_data['address2'],
+                        'city' => $contact_data['city'],
+                        'state' => $contact_data['state'],
+                        'zip' => $contact_data['zip'],
+                        'country' => $contact_data['country']
+                     ];
+                     // Clean
+                     foreach ($args as $k=>$v) { if(empty($v) && $k!='contact_id') unset($args[$k]); }
+
+                     $response = $api->submit('edit_contact', $args);
+                     if ($response->status() == 'success') {
+                        $contact_ids[strtolower($section) . '_contact'] = $cid;
+                     }
+                } else {
+                     $new_cid = $this->createContact($contact_data, $api);
+                     if ($new_cid) {
+                         $contact_ids[strtolower($section) . '_contact'] = $new_cid;
+                     }
                 }
             }
 
@@ -1826,17 +1918,11 @@ class Dynadot extends RegistrarModule
         $domain = $this->getServiceDomain($service);
 
         if (!empty($post)) {
-            $args = [];
-            $i = 0;
-            foreach ($post['ns'] as $ns) {
-                if (!empty($ns)) {
-                    $args['ns' . $i] = $ns;
-                    $i++;
-                }
+            $ns = [];
+            foreach ($post['ns'] as $n) {
+                if (!empty($n)) $ns[] = $n;
             }
-            $args['domain'] = $domain;
-            $response = $api->submit('set_ns', $args);
-            $this->processResponse($api, $response);
+            $this->setDomainNameservers($domain, $service->module_row_id, $ns);
             $vars = (object) $post;
         } else {
             $nameservers = $this->getDomainNameServers($domain, $service->module_row_id);
@@ -1873,12 +1959,10 @@ class Dynadot extends RegistrarModule
         if (!empty($post)) {
             if (isset($post['registrar_lock'])) {
                 if ($post['registrar_lock'] == 'yes') {
-                    $command = 'lock_domain';
+                    $this->lockDomain($domain, $service->module_row_id);
                 } else {
-                    $command = 'unlock_domain';
+                    $this->unlockDomain($domain, $service->module_row_id);
                 }
-                $response = $api->submit($command, ['domain' => $domain]);
-                $this->processResponse($api, $response);
             }
             if (isset($post['request_epp'])) {
                 $response = $api->submit('get_transfer_auth_code', ['domain' => $domain]);
@@ -1893,11 +1977,7 @@ class Dynadot extends RegistrarModule
             $vars = (object) $post;
         }
 
-        $info = $api->submit('domain_info', ['domain' => $domain]);
-        $info_res = $info->response();
-        if (isset($info_res->DomainInfoContent->Domain->Locked)) {
-            $vars->registrar_lock = $info_res->DomainInfoContent->Domain->Locked;
-        }
+        $vars->registrar_lock = $this->getDomainIsLocked($domain, $service->module_row_id) ? 'yes' : 'no';
 
         $this->view->set('vars', $vars);
         $this->view->setDefaultView(self::$defaultModuleView);
@@ -1946,9 +2026,6 @@ class Dynadot extends RegistrarModule
 
             if ($server_id) {
                 $api->submit('delete_ns', ['server_id' => $server_id]);
-            } else {
-                 // Fallback if not found in list or filtering issue?
-                 // But delete_ns requires ID.
             }
         }
 
@@ -2009,8 +2086,6 @@ class Dynadot extends RegistrarModule
                     ];
                     $api->submit('set_dnssec', $args);
                 } elseif ($post['action'] == 'delete') {
-                    // Dynadot doesn't have a granular delete_dnssec.
-                    // We must fetch all, filter out the one to delete, clear all, then add back remaining.
                     $response = $api->submit('get_dnssec', ['domain' => $domain]);
                     $res = $response->response();
 
@@ -2018,21 +2093,18 @@ class Dynadot extends RegistrarModule
                     if (isset($res->GetDnssecContent->DnssecRecord)) {
                          $recs = is_array($res->GetDnssecContent->DnssecRecord) ? $res->GetDnssecContent->DnssecRecord : [$res->GetDnssecContent->DnssecRecord];
                          foreach ($recs as $r) {
-                             // Check if this is the one to delete
                              if ((string)$r->KeyTag == $post['key_tag'] &&
                                  (string)$r->Algorithm == $post['algorithm'] &&
                                  (string)$r->DigestType == $post['digest_type'] &&
                                  (string)$r->Digest == $post['digest']) {
-                                 continue; // Skip this one
+                                 continue;
                              }
                              $keep_records[] = $r;
                          }
                     }
 
-                    // Clear all
                     $api->submit('clear_dnssec', ['domain' => $domain]);
 
-                    // Add back
                     foreach ($keep_records as $r) {
                         $args = [
                             'domain_name' => $domain,
@@ -2102,26 +2174,20 @@ class Dynadot extends RegistrarModule
         $vars->record_types = Configure::get('Dynadot.dns_records');
 
         if (!empty($post)) {
-            // Process update - overwrite
             $args = ['domain' => $domain];
-
-            // Re-loop to handle correctly
             $main_args = [];
             $sub_args = [];
             $m_cnt = 0;
             $s_cnt = 0;
 
-            // Iterate until no more keys found in post
             $i = 0;
             while (isset($post['main_record_type' . $i])) {
                 if (!empty($post['main_record' . $i]) && !empty($post['main_record_type' . $i])) {
                     if (empty($post['subdomain' . $i])) {
-                        // Main
                         $main_args['main_record_type' . $m_cnt] = $post['main_record_type' . $i];
                         $main_args['main_record' . $m_cnt] = $post['main_record' . $i];
                         $m_cnt++;
                     } else {
-                        // Sub
                         $sub_args['sub_record_type' . $s_cnt] = $post['main_record_type' . $i];
                         $sub_args['sub_record' . $s_cnt] = $post['main_record' . $i];
                         $sub_args['subdomain' . $s_cnt] = $post['subdomain' . $i];
@@ -2134,7 +2200,6 @@ class Dynadot extends RegistrarModule
             $api_args = array_merge(['domain' => $domain], $main_args, $sub_args);
             $api->submit('set_dns2', $api_args);
         } else {
-            // Fetch existing records
             $response = $api->submit('get_dns', ['domain' => $domain]);
             $res = $response->response();
 
@@ -2187,14 +2252,12 @@ class Dynadot extends RegistrarModule
         $domain = $this->getServiceDomain($service);
 
         if (!empty($post)) {
-            // Process update - overwrite
             $args = [
                 'domain' => $domain,
                 'forward_type' => 'forward'
             ];
 
             $count = 0;
-            // Iterate until no more keys found in post
             $i = 0;
             while (isset($post['username' . $i])) {
                 if (!empty($post['username' . $i]) && !empty($post['exist_email' . $i])) {
@@ -2208,9 +2271,6 @@ class Dynadot extends RegistrarModule
             if ($count > 0) {
                 $api->submit('set_email_forward', $args);
             }
-        } else {
-            // Dynadot API does not support fetching email forwarding records via XML API.
-            // We leave the fields empty.
         }
 
         $this->view->set('vars', $vars);
@@ -2231,7 +2291,6 @@ class Dynadot extends RegistrarModule
         $row = $this->getModuleRow($module_row_id);
         $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
 
-        // Fetch TLDs from cache
         $cache = Cache::fetchCache(
             'tlds',
             Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'dynadot' . DS
@@ -2296,40 +2355,12 @@ class Dynadot extends RegistrarModule
             return null;
         }
 
-        // Parse phone: assume +CC.Number or just Number (default to US 1)
-        // Blesta stores phone numbers as strings.
-        // Dynadot needs CC and Num.
-        $phone_cc = '1';
-        $phone_num = preg_replace('/[^0-9]/', '', $client->phone_number ?? ''); // strip non-digits
-
-        // Try to match a leading +CC pattern from $client->phone (original string).
-        if (preg_match('/^\+(\d+)\.(.+)$/', $client->phone_number ?? '', $matches)) {
-            $phone_cc = $matches[1];
-            $phone_num = preg_replace('/[^0-9]/', '', $matches[2]);
-        } elseif (strlen($phone_num) > 10) {
-             // Heuristic: if longer than 10 digits and no +, try to guess CC?
-             // e.g. 447700900000.
-             // Risky without country info.
-             // Just default to using full number as num and 1 as CC if we can't be sure,
-             // but Dynadot will likely reject if num is too long for CC 1.
-             // Let's try to infer from Country if available?
-             // Too complex to map all countries.
-             // Fallback: If starts with 1, assume US/CA.
-             if (substr($phone_num, 0, 1) == '1') {
-                 $phone_num = substr($phone_num, 1);
-             }
-        }
-
-        if (empty($phone_num)) {
-             $phone_num = '5555555555'; // Fallback
-        }
-
-        $args = [
-            'name' => ($client->first_name ?? '') . ' ' . ($client->last_name ?? ''),
+        $data = [
+            'first_name' => $client->first_name ?? '',
+            'last_name' => $client->last_name ?? '',
             'email' => $client->email ?? '',
-            'phonecc' => $phone_cc,
-            'phonenum' => $phone_num,
-            'organization' => $client->company ?? '',
+            'phone' => $client->phone_number ?? '',
+            'company' => $client->company ?? '',
             'address1' => $client->address1 ?? '',
             'address2' => $client->address2 ?? '',
             'city' => $client->city ?? '',
@@ -2338,19 +2369,7 @@ class Dynadot extends RegistrarModule
             'country' => $client->country ?? ''
         ];
 
-        // Clean empty args
-        foreach ($args as $k => $v) {
-            if (empty($v)) unset($args[$k]);
-        }
-
-        $response = $api->submit('create_contact', $args);
-        $res = $response->response();
-
-        if ($response->status() == 'success' && isset($res->CreateContactContent->ContactId)) {
-            return (string)$res->CreateContactContent->ContactId;
-        }
-
-        return null;
+        return $this->createContact($data, $api);
     }
 
     public function getFilteredTldPricing($module_row_id = null, $filters = [])

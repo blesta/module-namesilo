@@ -18,6 +18,17 @@ $lang['Dynadot.description'] = 'Dynadot is an ICANN accredited domain registrar 
 $lang['Dynadot.module_row'] = 'Account';
 $lang['Dynadot.module_row_plural'] = 'Accounts';
 
+// Module Manage
+$lang['Dynadot.manage.box_title'] = 'Manage Dynadot Accounts';
+$lang['Dynadot.manage.title'] = 'Dynadot Accounts';
+$lang['Dynadot.manage.module_row_title'] = 'Account';
+$lang['Dynadot.manage.module_groups_title'] = 'Groups';
+$lang['Dynadot.manage.module_rows_options'] = 'Options';
+$lang['Dynadot.manage.module_rows.edit'] = 'Edit';
+$lang['Dynadot.manage.module_rows.delete'] = 'Delete';
+$lang['Dynadot.manage.module_rows.confirm_delete'] = 'Are you sure you want to delete this account?';
+$lang['Dynadot.manage.module_rows_no_results'] = 'There are no accounts.';
+
 // Module Management
 $lang['Dynadot.add_row.box_title'] = 'Add Dynadot Account';
 $lang['Dynadot.add_row.basic_title'] = 'Basic Settings';

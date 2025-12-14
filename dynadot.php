@@ -755,7 +755,7 @@ class Dynadot extends RegistrarModule
         if (empty($key)) {
             if (($row = $this->getModuleRow())) {
                 $key = $row->meta->key;
-                $sandbox = $row->meta->sandbox;
+                $sandbox = (isset($row->meta->sandbox) && $row->meta->sandbox == 'true');
             }
         }
 

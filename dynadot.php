@@ -2302,10 +2302,12 @@ class Dynadot extends RegistrarModule
     public function getTlds($module_row_id = null)
     {
         $row = $this->getModuleRow($module_row_id);
-        $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
+        $sandbox = (isset($row->meta->sandbox) && $row->meta->sandbox == 'true');
+        $api = $this->getApi($row->meta->key, $sandbox);
 
+        $cache_key = 'tlds_' . ($sandbox ? 'sandbox' : 'live');
         $cache = Cache::fetchCache(
-            'tlds',
+            $cache_key,
             Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'dynadot' . DS
         );
 
@@ -2334,7 +2336,7 @@ class Dynadot extends RegistrarModule
             if (Configure::get('Caching.on') && is_writable(CACHEDIR)) {
                 try {
                     Cache::writeCache(
-                        'tlds',
+                        $cache_key,
                         base64_encode(serialize($tlds)),
                         strtotime(Configure::get('Blesta.cache_length')) - time(),
                         Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'dynadot' . DS

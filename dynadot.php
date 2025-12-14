@@ -2302,10 +2302,15 @@ class Dynadot extends RegistrarModule
     public function getTlds($module_row_id = null)
     {
         $row = $this->getModuleRow($module_row_id);
+        if (!$row) {
+            return [];
+        }
+
         $sandbox = (isset($row->meta->sandbox) && $row->meta->sandbox == 'true');
         $api = $this->getApi($row->meta->key, $sandbox);
 
-        $cache_key = 'tlds_' . ($sandbox ? 'sandbox' : 'live');
+        // Include row ID in cache key to separate accounts
+        $cache_key = 'tlds_' . $row->id . '_' . ($sandbox ? 'sandbox' : 'live');
         $cache = Cache::fetchCache(
             $cache_key,
             Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'dynadot' . DS
@@ -2318,8 +2323,11 @@ class Dynadot extends RegistrarModule
         $response = $api->submit('tld_price', ['currency' => 'USD']);
         $result = $response->response();
 
+        // Log the response for debugging
+        $this->log($api->lastRequest()['url'], $response->raw(), "output", $response->status() == 'success');
+
         $tlds = [];
-        if (isset($result->TldPriceContent->TldContent)) {
+        if ($result && isset($result->TldPriceContent->TldContent)) {
             $list = is_array($result->TldPriceContent->TldContent) ? $result->TldPriceContent->TldContent : [$result->TldPriceContent->TldContent];
             foreach ($list as $item) {
                 if (isset($item->Tld)) {
@@ -2394,14 +2402,21 @@ class Dynadot extends RegistrarModule
     public function getFilteredTldPricing($module_row_id = null, $filters = [])
     {
         $row = $this->getModuleRow($module_row_id);
+        if (!$row) {
+            return [];
+        }
+
         $api = $this->getApi($row->meta->key, $row->meta->sandbox == 'true');
 
         $response = $api->submit('tld_price', ['currency' => 'USD']);
         $result = $response->response();
 
+        // Log the response for debugging
+        $this->log($api->lastRequest()['url'], $response->raw(), "output", $response->status() == 'success');
+
         $tld_yearly_prices = [];
 
-        if (isset($result->TldPriceContent->TldContent)) {
+        if ($result && isset($result->TldPriceContent->TldContent)) {
             $tlds = is_array($result->TldPriceContent->TldContent) ? $result->TldPriceContent->TldContent : [$result->TldPriceContent->TldContent];
 
             foreach ($tlds as $tld_data) {

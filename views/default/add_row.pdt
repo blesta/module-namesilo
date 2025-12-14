@@ -13,6 +13,12 @@
                 <ul>
                     <li>
                         <?php
+                        $this->Form->label($this->_('Dynadot.add_row.field_user', true), 'user');
+                        $this->Form->fieldText('user', (isset($vars->user) ? $vars->user : null), ['id' => 'user', 'class' => 'block']);
+                        ?>
+                    </li>
+                    <li>
+                        <?php
                         $this->Form->label($this->_('Dynadot.add_row.field_key', true), 'key');
                         $this->Form->fieldText('key', (isset($vars->key) ? $vars->key : null), ['id' => 'key', 'class' => 'block']);
                         ?>

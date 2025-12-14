@@ -698,6 +698,13 @@ class Dynadot extends RegistrarModule
     private function getRowRules(&$vars)
     {
         return [
+            'user' => [
+                'valid' => [
+                    'rule' => 'isEmpty',
+                    'negate' => true,
+                    'message' => Language::_('Dynadot.!error.user.valid', true)
+                ]
+            ],
             'key' => [
                 'valid' => [
                     'last' => true,
@@ -839,6 +846,12 @@ class Dynadot extends RegistrarModule
         Loader::loadHelpers($this, ['Form', 'Html', 'Widget']);
 
         $this->view->set('module', $module);
+
+        // Add the add row button
+        $link_buttons = [
+            ['name' => Language::_('Dynadot.add_row.add_btn', true), 'attributes' => ['href' => $this->base_uri . 'settings/company/modules/addrow/' . $module->id]]
+        ];
+        $this->view->set('link_buttons', $link_buttons);
 
         return $this->view->fetch();
     }

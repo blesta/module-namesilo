@@ -1,101 +1,77 @@
-    <div id="ds-records">
-        <div class="title_row first">
-            <h3><?php $this->_('Namesilo.tab_dnssec.title_disclaimer'); ?></h3>
-        </div>
-        <div class="pad">
-            <p><?php $this->_('Namesilo.tab_dnssec.warning_message1'); ?></p>
-            <p><?php $this->_('Namesilo.tab_dnssec.warning_message2'); ?></p>
-        </div>
-
-        <div class="title_row">
-            <h3><?php $this->_('Namesilo.tab_dnssec.title_list'); ?></h3>
+    <div class="title_row first">
+        <h3><?php $this->_('Dynadot.tab_dnssec.title');?></h3>
+    </div>
+    <div class="pad">
+        <div class="links_row">
+            <a class="btn btn-default pull-right btn-sm" href="<?php echo $this->Html->safe($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/?action=add');?>"><span><?php $this->_('Dynadot.tab_dnssec.field_add');?></span></a>
         </div>
         <table class="table">
             <thead>
                 <tr class="heading_row">
-                    <td><span><?php $this->_('Namesilo.dnssec.key_tag'); ?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnssec.algorithm'); ?></span></td>
-                    <td><span><?php $this->_('Namesilo.dnssec.digest_type'); ?></span></td>
-                    <td><span><?php echo $this->_('Namesilo.dnssec.digest'); ?></span></td>
-                    <td><span><?php $this->_('Namesilo.tab_dnssec.field_delete'); ?></span></td>
+                    <td><?php $this->_('Dynadot.dnssec.key_tag');?></td>
+                    <td><?php $this->_('Dynadot.dnssec.algorithm');?></td>
+                    <td><?php $this->_('Dynadot.dnssec.digest_type');?></td>
+                    <td><?php $this->_('Dynadot.dnssec.digest');?></td>
+                    <td><?php $this->_('Dynadot.tab_dnssec.field_delete');?></td>
                 </tr>
             </thead>
-            <?php
-            if (!empty($vars->records) && count($vars->records) > 0 && $vars->records[0]) {
-                foreach ($vars->records as $record) {
-                    ?>
-                    <!-- List existing ds records -->
-                    <tbody>
-                    <tr>
-                        <td><?php echo (isset($record->key_tag) ? $record->key_tag : null); ?></td>
-                        <td><?php echo (isset($record->algorithm) ? $record->algorithm : null); ?></td>
-                        <td><?php echo (isset($record->digest_type) ? $record->digest_type : null); ?></td>
-                        <td><?php echo (isset($record->digest) ? $record->digest : null); ?></td>
-                        <td>
-                            <?php
-                            $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/');
-
-                            $this->Form->fieldHidden('digest', (isset($record->digest) ? $record->digest : null));
-                            $this->Form->fieldHidden('key_tag', (isset($record->key_tag) ? $record->key_tag : null));
-                            $this->Form->fieldHidden('algorithm', (isset($record->algorithm) ? $record->algorithm : null));
-                            $this->Form->fieldHidden('digest_type', (isset($record->digest_type) ? $record->digest_type : null));
-
-                            $button_attributes = [
-                                'class' => 'btn',
-                                'value' => 'deleteDnssec',
-                                'type' => 'submit',
-                            ];
-
-                            $this->Form->fieldButton('action', $this->_('Namesilo.tab_dnssec.field_delete', true), $button_attributes);
-
-                            $this->Form->end();
-                            ?>
-                        </td>
-                    </tr>
-                    </tbody>
-                    <?php
-                }
-            }
-            ?>
-        </table>
-
-        <div class="title_row">
-            <h3><?php $this->_('Namesilo.tab_dnssec.title_add'); ?></h3>
-        </div>
-        <?php
-        $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/');
-        ?>
-        <table class="table">
-            <!-- Add New DS Record -->
-            <thead>
-            <tr class="heading_row">
-                <td><span><?php $this->_('Namesilo.dnssec.key_tag'); ?></span></td>
-                <td><span><?php $this->_('Namesilo.dnssec.algorithm'); ?></span></td>
-                <td><span><?php $this->_('Namesilo.dnssec.digest_type'); ?></span></td>
-                <td><span><?php echo $this->_('Namesilo.dnssec.digest'); ?></span></td>
-            </tr>
-            </thead>
             <tbody>
-            <tr>
-                <td><?php $this->Form->fieldText('key_tag'); ?></td>
-                <td><?php $this->Form->fieldSelect('algorithm', $vars->selects['algorithm']['options']); ?></td>
-                <td><?php $this->Form->fieldSelect('digest_type', $vars->selects['digest_type']['options']); ?></td>
-                <td><?php $this->Form->fieldText('digest'); ?></td>
-            </tr>
+                <?php
+                if (isset($vars->records) && is_array($vars->records)) {
+                    foreach ($vars->records as $record) {
+                        ?>
+                        <tr>
+                            <td><?php echo $this->Html->safe($record->key_tag ?? '');?></td>
+                            <td><?php echo $this->Html->safe($record->algorithm ?? '');?></td>
+                            <td><?php echo $this->Html->safe($record->digest_type ?? '');?></td>
+                            <td><?php echo $this->Html->safe($record->digest ?? '');?></td>
+                            <td>
+                                <?php
+                                $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/');
+                                $this->Form->fieldHidden('action', 'delete');
+                                // We need all params to delete
+                                $this->Form->fieldHidden('key_tag', $record->key_tag ?? '');
+                                $this->Form->fieldHidden('algorithm', $record->algorithm ?? '');
+                                $this->Form->fieldHidden('digest_type', $record->digest_type ?? '');
+                                $this->Form->fieldHidden('digest', $record->digest ?? '');
+                                $this->Form->fieldButton('submit', $this->_('Dynadot.tab_dnssec.field_delete', true), ['class' => 'btn btn-sm btn-danger', 'type' => 'submit']);
+                                $this->Form->end();
+                                ?>
+                            </td>
+                        </tr>
+                        <?php
+                    }
+                }
+                ?>
             </tbody>
         </table>
-        <div class="button_row">
-            <?php
-            $button_attributes = [
-                'class' => 'btn btn-primary float-right',
-                'value' => 'addDnssec',
-                'type' => 'submit',
-            ];
 
-            $this->Form->fieldButton('action', $this->_('Namesilo.tab_dnssec.field_add', true), $button_attributes);
-            ?>
+        <?php if (isset($vars->add_view) && $vars->add_view) { ?>
+        <hr />
+        <h4><?php $this->_('Dynadot.tab_dnssec.title_add');?></h4>
+        <?php $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/'); ?>
+        <?php $this->Form->fieldHidden('action', 'add'); ?>
+        <ul>
+            <li>
+                <?php $this->Form->label($this->_('Dynadot.dnssec.key_tag', true), 'key_tag'); ?>
+                <?php $this->Form->fieldText('key_tag', $vars->key_tag ?? '', ['class' => 'block']); ?>
+            </li>
+            <li>
+                <?php $this->Form->label($this->_('Dynadot.dnssec.algorithm', true), 'algorithm'); ?>
+                <?php $this->Form->fieldSelect('algorithm', $vars->algorithms ?? [], $vars->algorithm ?? null, ['class' => 'block']); ?>
+            </li>
+            <li>
+                <?php $this->Form->label($this->_('Dynadot.dnssec.digest_type', true), 'digest_type'); ?>
+                <?php $this->Form->fieldSelect('digest_type', $vars->digest_types ?? [], $vars->digest_type ?? null, ['class' => 'block']); ?>
+            </li>
+            <li>
+                <?php $this->Form->label($this->_('Dynadot.dnssec.digest', true), 'digest'); ?>
+                <?php $this->Form->fieldText('digest', $vars->digest ?? '', ['class' => 'block']); ?>
+            </li>
+        </ul>
+        <div class="button_row">
+            <?php $this->Form->fieldSubmit('save', $this->_('Dynadot.tab_dnssec.field_add', true), ['class' => 'btn btn-primary pull-right']); ?>
         </div>
-        <?php
-        $this->Form->end();
-        ?>
+        <?php $this->Form->end(); ?>
+        <?php } ?>
     </div>

@@ -1,61 +1,42 @@
-
-<?php
-    $this->Form->create();
-    ?>
-
-    <?php
-    $i = 0;
-    foreach ($sections as $key) {
+    <div class="title_row first">
+        <h3><?php $this->_('Dynadot.tab_whois.title');?></h3>
+    </div>
+    <div class="pad">
+        <?php
+        $this->Form->create();
         ?>
-        <div class="title_row">
-            <h3><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></h3>
-        </div>
-        <div class="pad">
+        <?php
+        $sections = ['Registrant', 'Admin', 'Technical', 'Billing'];
+        foreach ($sections as $section) {
+            $section_key = strtolower($section);
+        ?>
+            <h4><?php $this->_('Dynadot.tab_whois.section_' . $section_key);?></h4>
             <ul>
                 <?php
-                $this->Form->fieldSelect($key, $contact_ids, $vars->{$key} ?? null, []);
+                foreach ($fields as $key => $field) {
+                    if (strpos($key, $section) !== 0) {
+                        continue;
+                    }
+                    ?>
+                    <li>
+                        <?php
+                        $this->Form->label($field['label'], $key);
+                        $this->Form->fieldText($key, (isset($vars->{$key}) ? $vars->{$key} : null), ['id' => $key, 'class' => 'block']);
+                        ?>
+                    </li>
+                    <?php
+                }
                 ?>
             </ul>
-        </div>
         <?php
-        $i++;
-    }
-    ?>
-    <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_whois.field_submit'); ?></a></div>
+        }
+        ?>
+    </div>
+    <div class="button_row">
+        <?php
+        $this->Form->fieldSubmit('save', $this->_('Dynadot.tab_whois.field_submit', true), ['class' => 'btn btn-primary pull-right']);
+        ?>
+    </div>
     <?php
     $this->Form->end();
     ?>
-
-    <script>
-        $(document).ready(function () {
-            $('.match-registrant').click(copyRegistrantInfo);
-        });
-        function copyInfo(that) {
-            const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
-            const main_val = $("input[name='registrant[" + line_name + "]']").val();
-
-            $(that).val(main_val);
-        }
-
-        function copyRegistrantInfo(e) {
-            e.preventDefault();
-            const value = $(this).attr('name');
-            switch(value) {
-                case 'admin':
-                    $( "input[name^='administrative']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-                case 'tech':
-                    $( "input[name^='technical']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-                case 'billing':
-                    $( "input[name^='billing']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-            }
-        }
-    </script>

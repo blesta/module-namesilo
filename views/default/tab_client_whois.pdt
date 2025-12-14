@@ -1,61 +1,42 @@
-
-<?php
-    $this->Form->create();
-    ?>
-
-    <?php
-    $i = 0;
-    foreach ($sections as $key) {
-        ?>
-        <div class="title_row">
-            <h4><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></h4>
-        </div>
-        <div class="form-group">
-        <?php
-        $this->Form->fieldSelect($key, $contact_ids, $vars->{$key} ?? null, ['class' => 'form-control']);
-        ?>
-        </div>
-        <?php
-        $i++;
-    }
-    ?>
-    <button class="btn btn-light float-right" type="submit">
-        <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_whois.field_submit'); ?>
-    </button>
-    <?php
-    $this->Form->end();
-    ?>
-
-    <script>
-        $(document).ready(function () {
-            $('.match-registrant').click(copyRegistrantInfo);
-        });
-        function copyInfo(that) {
-            const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
-            const main_val = $("input[name='registrant[" + line_name + "]']").val();
-
-            $(that).val(main_val);
-        }
-
-        function copyRegistrantInfo(e) {
-            e.preventDefault();
-            const value = $(this).attr('name');
-            switch(value) {
-                case 'admin':
-                    $( "input[name^='administrative']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-                case 'tech':
-                    $( "input[name^='technical']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-                case 'billing':
-                    $( "input[name^='billing']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
+    <div class="row panel-fix">
+        <div class="col-md-12">
+            <h4><?php $this->_('Dynadot.tab_whois.title');?></h4>
+            <?php
+            $this->Form->create();
+            ?>
+            <?php
+            $sections = ['Registrant', 'Admin', 'Technical', 'Billing'];
+            foreach ($sections as $section) {
+                $section_key = strtolower($section);
+            ?>
+                <h5><?php $this->_('Dynadot.tab_whois.section_' . $section_key);?></h5>
+                <div class="form-group">
+                    <?php
+                    foreach ($fields as $key => $field) {
+                        if (strpos($key, $section) !== 0) {
+                            continue;
+                        }
+                        ?>
+                        <div class="form-group">
+                            <?php
+                            $this->Form->label($field['label'], $key);
+                            $this->Form->fieldText($key, (isset($vars->{$key}) ? $vars->{$key} : null), ['id' => $key, 'class' => 'form-control']);
+                            ?>
+                        </div>
+                        <?php
+                    }
+                    ?>
+                </div>
+            <?php
             }
-        }
-    </script>
+            ?>
+            <div class="button_row">
+                <?php
+                $this->Form->fieldSubmit('save', $this->_('Dynadot.tab_whois.field_submit', true), ['class' => 'btn btn-primary pull-right']);
+                ?>
+            </div>
+            <?php
+            $this->Form->end();
+            ?>
+        </div>
+    </div>

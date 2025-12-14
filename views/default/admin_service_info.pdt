@@ -1,0 +1,23 @@
+
+	<div class="table-responsive">
+		<table class="table table-curved table-striped">
+			<thead>
+				<tr>
+					<th><i class="fas fa-share fa-flip-vertical"></i></th>
+					<th><?php $this->_('Dynadot.service_info.domain'); ?></th>
+					<th><?php $this->_('Dynadot.service_info.status'); ?></th>
+					<th><?php $this->_('Dynadot.service_info.expiration'); ?></th>
+					<th><?php $this->_('Dynadot.service_info.lock_status'); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td></td>
+					<td><?php $this->Html->_($domain); ?></td>
+					<td><?php $this->Html->_($status); ?></td>
+					<td><?php echo $this->Date->cast($expiration, 'date_time'); ?></td>
+					<td><?php $this->Html->_($locked); ?></td>
+				</tr>
+			</tbody>
+		</table>
+	</div>

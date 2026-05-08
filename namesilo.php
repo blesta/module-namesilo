@@ -1,5 +1,7 @@
 <?php
 
+use Blesta\Core\Util\Common\Classes\Model;
+
 /**
  * Namesilo Module
  *
@@ -3466,7 +3468,7 @@ class Namesilo extends RegistrarModule
         );
 
         if ($cache) {
-            return safe_unserialize(base64_decode($cache));
+            return Model::safeUnserialize(base64_decode($cache));
         }
 
         // Fetch namesilo TLDs
@@ -3949,7 +3951,7 @@ class Namesilo extends RegistrarModule
         );
 
         if ($cache) {
-            $result = safe_unserialize(base64_decode($cache));
+            $result = Model::safeUnserialize(base64_decode($cache));
         }
 
         Loader::loadModels($this, ['Currencies']);

@@ -3159,6 +3159,11 @@ class Namesilo extends RegistrarModule
             $records['resource_record'] = [];
         }
 
+        // NameSilo's production API may return all DNS records grouped within a single
+        // <resource_record> element, producing a column-oriented array keyed by field
+        // name instead of a list of records. Transpose that shape back into a list.
+        $records['resource_record'] = $this->normalizeDnsRecords($records['resource_record']);
+
         // We are expecting a multidimensional array
         if ($this->isMultiArray($records['resource_record']) === false) {
             $records['resource_record'] = [0 => $records['resource_record']];
@@ -4082,5 +4087,58 @@ class Namesilo extends RegistrarModule
         rsort($array);
 
         return isset($array[0]) && is_array($array[0]);
+    }
+
+    /**
+     * Normalizes the DNS records returned by the API into a consistent list of records.
+     *
+     * NameSilo's production API may return all records grouped within a single
+     * <resource_record> element, producing a column-oriented array keyed by field name
+     * (e.g. ['type' => ['A', 'TXT'], 'host' => ['@', 'www'], ...]) rather than a list of
+     * records. This transposes that shape back into a list of records. Lists already in
+     * the expected (numerically indexed) format are returned unchanged.
+     *
+     * @param array $records The resource_record array from the API response
+     * @return array A list of DNS records, each an associative array of fields
+     */
+    private function normalizeDnsRecords(array $records)
+    {
+        if (empty($records)) {
+            return $records;
+        }
+
+        // A list of records is numerically indexed; a column-oriented response is keyed
+        // by field name (i.e. it contains at least one non-integer key).
+        $is_column_oriented = false;
+        foreach (array_keys($records) as $key) {
+            if (!is_int($key)) {
+                $is_column_oriented = true;
+                break;
+            }
+        }
+
+        if (!$is_column_oriented) {
+            return $records;
+        }
+
+        // Determine the number of records from the longest column and transpose the
+        // columns into a list of records
+        $columns = [];
+        $count = 0;
+        foreach ($records as $field => $values) {
+            $columns[$field] = is_array($values) ? array_values($values) : [$values];
+            $count = max($count, count($columns[$field]));
+        }
+
+        $normalized = [];
+        for ($i = 0; $i < $count; $i++) {
+            $record = [];
+            foreach ($columns as $field => $values) {
+                $record[$field] = $values[$i] ?? null;
+            }
+            $normalized[] = $record;
+        }
+
+        return $normalized;
     }
 }

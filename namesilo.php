@@ -3281,13 +3281,18 @@ class Namesilo extends RegistrarModule
             $registrant_email = $registrant_info->response()->contact->email;
 
             $registrant_verification = $domains->registrantVerificationStatus()->response(true);
-            if ($registrant_verification) {
-                if (!is_array($registrant_verification['email'])) {
-                    $registrant_verification['email'] = [$registrant_verification['email']];
+            if ($registrant_verification && !empty($registrant_verification['email'])) {
+                $emails = $registrant_verification['email'];
+                if (isset($emails['email_address'])) {
+                    $emails = [$emails];
                 }
-                foreach ($registrant_verification['email'] as $key => $registrant) {
-                    if (isset($registrant['email_address']) && $registrant['email_address'] == $registrant_email) {
+                foreach ($emails as $registrant) {
+                    if (
+                        isset($registrant['email_address'])
+                        && strcasecmp((string) $registrant['email_address'], (string) $registrant_email) === 0
+                    ) {
                         $vars->registrant_verification_info = $registrant;
+                        break;
                     }
                 }
             }

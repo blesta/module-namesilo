@@ -3151,16 +3151,31 @@ class Namesilo extends RegistrarModule
         $fields = $this->serviceFieldsToObject($service->fields);
         $this->view->set('domain', $fields->domain);
 
+        // Download the zone as a standard BIND zone file
+        if (($get['export'] ?? null) === 'zone') {
+            Loader::loadComponents($this, ['Download']);
+            $this->Download->setContentType('text/plain');
+            $this->Download->downloadData(
+                $fields->domain . '.txt',
+                $this->buildZoneFile($fields->domain, $this->getDnsRecords($dns, $fields->domain))
+            );
+            exit;
+        }
+
         if (!empty($post)) {
             if (isset($post['action'])) {
+                $success_message = null;
+
                 if ($post['action'] == 'addDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsAddRecord($dns_fields);
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_added';
                 } elseif ($post['action'] == 'updateDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsUpdateRecord($dns_fields);
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_updated';
                 } elseif ($post['action'] == 'deleteDnsRecord') {
                     $response = $dns->dnsDeleteRecord(
                         [
@@ -3169,11 +3184,43 @@ class Namesilo extends RegistrarModule
                         ]
                     );
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_deleted';
+                }
+
+                if ($success_message && !$this->errors()) {
+                    $this->setMessage('success', Language::_($success_message, true));
                 }
             }
         }
 
-        $records = $dns->dnsListRecords(['domain' => $fields->domain])->response(true);
+        $records = ['resource_record' => $this->getDnsRecords($dns, $fields->domain)];
+
+        // Show nameservers alert
+        $this->validateAndAlertNameservers($fields->domain, $row->id ?? null);
+
+        $vars->selects = Configure::get('Namesilo.dns_records');
+        $vars->records = $records['resource_record'];
+
+        $this->view->set('vars', $vars);
+        $this->view->set('fields', $fields);
+        $this->view->set('client_id', $service->client_id);
+        $this->view->set('service_id', $service->id);
+
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        return $this->view->fetch();
+    }
+
+    /**
+     * Fetches the DNS records for a domain in a consistent format
+     *
+     * @param NamesiloDomainsDns $dns The NameSilo DNS API command object
+     * @param string $domain The domain to fetch records for
+     * @return array A list of records, each including an "edit_host" key holding the host relative to the domain
+     */
+    private function getDnsRecords(NamesiloDomainsDns $dns, $domain)
+    {
+        $records = $dns->dnsListRecords(['domain' => $domain])->response(true);
 
         // Get a consistent format because XML parsing in PHP is inconsistent
         if (isset($records['resource_record']) && !is_array($records['resource_record'])) {
@@ -3190,25 +3237,121 @@ class Namesilo extends RegistrarModule
         // Relative host used to pre-fill the edit form
         foreach ($records['resource_record'] as &$record) {
             if (is_array($record)) {
-                $record['edit_host'] = $this->normalizeDnsHost($record['host'] ?? '', $fields->domain);
+                $record['edit_host'] = $this->normalizeDnsHost($record['host'] ?? '', $domain);
             }
         }
         unset($record);
 
-        // Show nameservers alert
-        $this->validateAndAlertNameservers($fields->domain, $row->id ?? null);
+        return $records['resource_record'];
+    }
 
-        $vars->selects = Configure::get('Namesilo.dns_records');
-        $vars->records = $records['resource_record'];
+    /**
+     * Builds a standard BIND zone file (RFC 1035 section 5 master file format) from NameSilo DNS records
+     *
+     * @param string $domain The domain the records belong to
+     * @param array $records A list of records as returned by getDnsRecords()
+     * @return string The zone file contents
+     */
+    private function buildZoneFile($domain, array $records)
+    {
+        $lines = [
+            '; Zone file for ' . $domain,
+            '; Exported ' . gmdate('Y-m-d H:i:s') . ' UTC from NameSilo DNS',
+            '; SOA and NS records are managed by NameSilo and are not included',
+            '$ORIGIN ' . $domain . '.',
+            '$TTL 7207',
+            '',
+        ];
 
-        $this->view->set('vars', $vars);
-        $this->view->set('fields', $fields);
-        $this->view->set('client_id', $service->client_id);
-        $this->view->set('service_id', $service->id);
+        foreach ($records as $record) {
+            if (!is_array($record) || empty($record['type'])) {
+                continue;
+            }
 
-        $this->view->setDefaultView(self::$defaultModuleView);
+            $type = strtoupper($record['type']);
+            $host = $this->normalizeDnsHost($record['host'] ?? '', $domain);
+            $value = (string) ($record['value'] ?? '');
 
-        return $this->view->fetch();
+            switch ($type) {
+                case 'A':
+                case 'AAAA':
+                    $data = $value;
+                    break;
+                case 'CNAME':
+                    $data = $this->toAbsoluteDnsName($value, $domain);
+                    break;
+                case 'MX':
+                    $data = (int) ($record['distance'] ?? 0) . ' ' . $this->toAbsoluteDnsName($value, $domain);
+                    break;
+                case 'TXT':
+                    $data = $this->quoteTxtValue($value);
+                    break;
+                case 'SRV':
+                    // Priority is listed separately as the distance; the target host must be fully-qualified
+                    $parts = preg_split('/\s+/', trim($value));
+                    $parts[] = $this->toAbsoluteDnsName(array_pop($parts), $domain);
+                    $lines[] = '; SRV record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = (int) ($record['distance'] ?? 0) . ' ' . implode(' ', $parts);
+                    break;
+                default:
+                    $lines[] = '; ' . $type
+                        . ' record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = trim(
+                        (isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] . ' ' : '')
+                        . $value
+                    );
+            }
+
+            $name = $host === '' ? '@' : $host;
+            $lines[] = implode("\t", [$name, (int) ($record['ttl'] ?? 7207), 'IN', $type, $data]);
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Converts a host name into a fully-qualified zone file name (with a trailing dot)
+     *
+     * @param string $name The host name, e.g. "mail.example.com" or "@"
+     * @param string $domain The domain the record belongs to
+     * @return string The fully-qualified name, e.g. "mail.example.com."
+     */
+    private function toAbsoluteDnsName($name, $domain)
+    {
+        $name = trim($name);
+
+        if ($name === '' || $name === '@') {
+            return $domain . '.';
+        }
+
+        return substr($name, -1) === '.' ? $name : $name . '.';
+    }
+
+    /**
+     * Formats a raw TXT value as one or more quoted zone file character-strings (RFC 1035 sections 3.3 and 5.1),
+     * splitting values longer than 255 bytes and escaping quotes, backslashes and non-printable bytes
+     *
+     * @param string $value The raw TXT value
+     * @return string The quoted value, e.g. "v=spf1 ~all"
+     */
+    private function quoteTxtValue($value)
+    {
+        if ($value === '') {
+            return '""';
+        }
+
+        $strings = [];
+        foreach (str_split($value, 255) as $chunk) {
+            $strings[] = '"' . preg_replace_callback(
+                '/[\\\\"]|[^\x20-\x7e]/',
+                function ($char) {
+                    return in_array($char[0], ['\\', '"']) ? '\\' . $char[0] : sprintf('\\%03d', ord($char[0]));
+                },
+                $chunk
+            ) . '"';
+        }
+
+        return implode(' ', $strings);
     }
 
     private function getDnsFields($post, $fields)

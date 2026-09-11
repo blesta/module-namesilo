@@ -151,7 +151,13 @@ $lang['Namesilo.tab_dnsrecord.title_edit'] = 'Edit DNS Record';
 $lang['Namesilo.tab_dnsrecord.field_edit'] = 'Edit';
 $lang['Namesilo.tab_dnsrecord.field_save'] = 'Save Record';
 $lang['Namesilo.tab_dnsrecord.field_cancel'] = 'Cancel';
-$lang['Namesilo.tab_dnsrecord.confirm_delete'] = 'Are you sure you want to delete this DNS record?';
+$lang['Namesilo.tab_dnsrecord.field_export'] = 'Export Zone File';
+$lang['Namesilo.tab_dnsrecord.title_delete'] = 'Delete DNS Record';
+$lang['Namesilo.tab_dnsrecord.confirm_delete'] = 'Delete the %1$s record for %2$s with the value %3$s?';
+$lang['Namesilo.tab_dnsrecord.title_confirm_edit'] = 'Confirm DNS Record Change';
+$lang['Namesilo.tab_dnsrecord.confirm_edit'] = 'Change the %1$s record for %2$s:';
+$lang['Namesilo.tab_dnsrecord.confirm_edit_change'] = '%1$s from %2$s to %3$s';
+$lang['Namesilo.tab_dnsrecord.text_empty'] = '(empty)';
 $lang['Namesilo.tab_dnsrecord.help_text_1'] = 'On this page you can add, edit or delete A, AAAA, CNAME, MX and TXT DNS records. Changes may take a few minutes to propagate. <br/> These records only take effect while your domain uses the following name servers:<br />NS1.DNSOWL.COM<br />NS2.DNSOWL.COM<br />NS3.DNSOWL.COM';
 
 $lang['Namesilo.dnsrecord.record_type'] = 'Type';
@@ -328,6 +334,9 @@ $lang['Namesilo.domain.EUCountryOfCitizenship.se'] = 'Sweden';
 $lang['Namesilo.!success.packages_saved'] = 'The packages have been successfully saved.';
 $lang['Namesilo.!success.epp_code_sent'] = "The EPP Code/Transfer Key has been sent to the administrative contact for this domain name via email.";
 $lang['Namesilo.!success.contact_deleted'] = "The contact was successfully deleted.";
+$lang['Namesilo.!success.dns_record_added'] = 'The DNS record has been added. It may take a few minutes for the change to go live.';
+$lang['Namesilo.!success.dns_record_updated'] = 'The DNS record has been updated. It may take a few minutes for the change to go live.';
+$lang['Namesilo.!success.dns_record_deleted'] = 'The DNS record has been deleted. It may take a few minutes for the change to go live.';
 
 // Errors
 $lang['Namesilo.!error.FRLegalType.format'] = 'Please select a valid Legal Type';

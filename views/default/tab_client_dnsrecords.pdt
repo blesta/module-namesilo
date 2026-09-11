@@ -25,8 +25,9 @@
                 <tbody>
                     <?php if (isset($vars->records) && count($vars->records) > 0) {
                         foreach ($vars->records as $record) {
-                            $distance = isset($record['distance']) && $record['distance'] != 0
-                                ? $record['distance']
+                            // NameSilo lists a distance of 0 for non-MX records, but 0 is a valid MX priority
+                            $distance = ($record['type'] ?? '') === 'MX' || !empty($record['distance'])
+                                ? ($record['distance'] ?? null)
                                 : null;
                             $fqdn = ($record['edit_host'] ?? '') !== '' ? $record['edit_host'] . '.' . $domain : $domain;
                             ?>

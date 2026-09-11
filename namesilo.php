@@ -3287,11 +3287,18 @@ class Namesilo extends RegistrarModule
                     $data = $this->quoteTxtValue($value);
                     break;
                 case 'SRV':
-                    // Priority is listed separately as the distance; the target host must be fully-qualified
-                    $parts = preg_split('/\s+/', trim($value));
+                    // NameSilo uses "weight:port:target" with the priority as the distance; the target host
+                    // must be fully-qualified
+                    $parts = $this->splitDnsValue($value);
                     $parts[] = $this->toAbsoluteDnsName(array_pop($parts), $domain);
                     $lines[] = '; SRV record exported as listed by NameSilo, check it before importing elsewhere';
                     $data = (int) ($record['distance'] ?? 0) . ' ' . implode(' ', $parts);
+                    break;
+                case 'CAA':
+                    // NameSilo uses "flag:tag:value"; zone files quote the value (RFC 8659 section 4.1.1)
+                    $parts = array_pad($this->splitDnsValue($value), 3, '');
+                    $lines[] = '; CAA record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = (int) $parts[0] . ' ' . $parts[1] . ' "' . addcslashes(trim($parts[2], '"'), '"\\') . '"';
                     break;
                 default:
                     $lines[] = '; ' . $type
@@ -3307,6 +3314,21 @@ class Namesilo extends RegistrarModule
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Splits a NameSilo SRV/CAA value into its three parts. NameSilo documents these as "X:Y:Z"
+     * (SRV weight:port:target, CAA flag:tag:value); space-separated values are also accepted. Only the
+     * first two separators split, so a CAA value such as "mailto:admin@example.com" stays intact.
+     *
+     * @param string $value The value as listed by NameSilo
+     * @return array The parts of the value
+     */
+    private function splitDnsValue($value)
+    {
+        $value = trim($value);
+
+        return preg_match('/\s/', $value) ? preg_split('/\s+/', $value, 3) : explode(':', $value, 3);
     }
 
     /**
@@ -3374,7 +3396,8 @@ class Namesilo extends RegistrarModule
             $dns_fields['rrid'] = $post['record_id'];
             unset($dns_fields['rrtype']);
         }
-        if (isset($post['distance']) && !empty($post['distance']) && $record_type == 'MX') {
+        // Priority 0 is valid for MX, and NameSilo applies a default of 10 when rrdistance is omitted
+        if ($record_type == 'MX' && isset($post['distance']) && trim($post['distance']) !== '') {
             $dns_fields['rrdistance'] = trim($post['distance']);
         }
 

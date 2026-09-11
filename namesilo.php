@@ -3171,6 +3171,29 @@ class Namesilo extends RegistrarModule
                     ? $this->validateDnsInput($post)
                     : [];
 
+                // SPF/DMARC/DKIM rules that break the domain's email when violated (one record
+                // per host/selector, and DMARC/DKIM only where receivers look for them)
+                if (!$input_errors
+                    && in_array($post['action'], ['addDnsRecord', 'updateDnsRecord'], true)
+                    && ($post['record_type'] ?? '') === 'TXT'
+                ) {
+                    $dns_fields = $this->getDnsFields($post, $fields);
+                    if (self::emailAuthRecordKind($dns_fields['rrvalue']) !== null) {
+                        $conflict = $this->emailAuthConflict(
+                            $this->getDnsRecords($dns, $fields->domain),
+                            $dns_fields['rrhost'],
+                            $dns_fields['rrvalue'],
+                            !empty($post['record_id']) ? $post['record_id'] : null,
+                            $fields->domain
+                        );
+                        if ($conflict) {
+                            $input_errors = [
+                                'value' => ['email_auth' => Language::_($conflict['key'], true, ...$conflict['args'])]
+                            ];
+                        }
+                    }
+                }
+
                 if ($input_errors) {
                     $this->Input->setErrors($input_errors);
                 } elseif ($post['action'] == 'addDnsRecord') {
@@ -3224,6 +3247,83 @@ class Namesilo extends RegistrarModule
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
+    }
+
+    /**
+     * Which email-authentication record a TXT value is, by its required leading version tag:
+     * SPF ("v=spf1", RFC 7208 4.5), DMARC ("v=DMARC1", RFC 7489 6.3) or DKIM ("v=DKIM1",
+     * RFC 6376 3.6.1). Case-insensitive, since some providers publish "V=SPF1".
+     *
+     * @param string $value The raw TXT value (already unquoted)
+     * @return string|null 'spf', 'dmarc', 'dkim', or null for any other TXT value
+     */
+    private static function emailAuthRecordKind($value)
+    {
+        $value = trim((string) $value);
+        if (preg_match('/^v=spf1(\s|$)/i', $value)) {
+            return 'spf';
+        }
+        if (preg_match('/^v=dmarc1\s*(;|$)/i', $value)) {
+            return 'dmarc';
+        }
+        if (preg_match('/^v=dkim1\s*(;|$)/i', $value)) {
+            return 'dkim';
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks a new or edited TXT value against the email-authentication rules that break mail
+     * when violated, and returns the problem as a language key plus arguments (or null):
+     *
+     *  - a second SPF record at the same host: SPF evaluation returns permerror, so SPF fails
+     *    for all of the domain's mail (RFC 7208 3.2 / 4.5)
+     *  - a second DMARC record at the same host: receivers ignore DMARC entirely (RFC 7489 6.6.3)
+     *  - a second DKIM key at the same selector: results are undefined (RFC 6376 3.6.2.2)
+     *  - a DMARC record anywhere but _dmarc, or a DKIM key anywhere but <selector>._domainkey,
+     *    where receivers never look for it
+     *
+     * @param array $records The domain's current records (getDnsRecords())
+     * @param string $host The host being saved (relative, as normalizeDnsHost() returns)
+     * @param string $value The TXT value being saved (unquoted)
+     * @param string|null $record_id The record being edited (excluded from the check), or null
+     * @param string $domain The domain
+     * @return array|null ['key' => language key, 'args' => [...]] or null when fine
+     */
+    private function emailAuthConflict(array $records, $host, $value, $record_id, $domain)
+    {
+        $kind = self::emailAuthRecordKind($value);
+        if ($kind === null) {
+            return null;
+        }
+
+        $fqdn = $host === '' ? $domain : $host . '.' . $domain;
+        if ($kind === 'dmarc' && !preg_match('/^_dmarc(\.|$)/', $host)) {
+            return ['key' => 'Namesilo.!error.dns_value.dmarc_host', 'args' => ['_dmarc.' . $domain]];
+        }
+        if ($kind === 'dkim' && !preg_match('/(^|\.)_domainkey(\.|$)/', $host)) {
+            return ['key' => 'Namesilo.!error.dns_value.dkim_host', 'args' => [$domain]];
+        }
+
+        foreach ($records as $record) {
+            if (!is_array($record) || strtoupper($record['type'] ?? '') !== 'TXT') {
+                continue;
+            }
+            if ($record_id !== null && ($record['record_id'] ?? null) === $record_id) {
+                continue;
+            }
+            if ($this->normalizeDnsHost($record['host'] ?? '', $domain) !== $host) {
+                continue;
+            }
+            // Records created elsewhere may carry literal zone-file quotes; compare unquoted
+            $existing = $this->normalizeTxtValue((string) ($record['value'] ?? ''));
+            if (self::emailAuthRecordKind($existing) === $kind) {
+                return ['key' => 'Namesilo.!error.dns_value.duplicate_' . $kind, 'args' => [$fqdn, $existing]];
+            }
+        }
+
+        return null;
     }
 
     /**

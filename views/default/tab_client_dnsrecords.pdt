@@ -100,11 +100,6 @@
                     <div class="d-inline-block">.<?php echo $this->Html->safe($domain); ?></div>
                 </div>
 
-                <div class="d-inline-block mx-1 mb-1">
-                    <label for="dns_edit_value"><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
-                    <?php $this->Form->fieldText('value', null, ['class' => 'form-control', 'id' => 'dns_edit_value']); ?>
-                </div>
-
                 <div class="d-inline-block mx-1 mb-1" id="dns_edit_distance_group" style="display:none;">
                     <label for="dns_edit_distance"><?php $this->_('Namesilo.dnsrecord.distance'); ?></label>
                     <?php $this->Form->fieldText('distance', null, [
@@ -117,6 +112,15 @@
                     <label for="dns_edit_ttl"><?php $this->_('Namesilo.dnsrecord.ttl'); ?></label>
                     <?php $this->Form->fieldText('ttl', null, ['class' => 'form-control', 'id' => 'dns_edit_ttl']); ?>
                 </div>
+            </div>
+
+            <div class="form-group mx-1">
+                <label for="dns_edit_value"><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
+                <?php $this->Form->fieldTextarea('value', null, [
+                    'class' => 'form-control',
+                    'id' => 'dns_edit_value',
+                    'rows' => 3,
+                ]); ?>
             </div>
 
             <div class="float-right">
@@ -150,11 +154,6 @@
                 <div class="d-inline-block">.<?php echo $this->Html->safe($domain); ?></div>
             </div>
 
-            <div class="d-inline-block mx-1 mb-1">
-                <label><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
-                <?php $this->Form->fieldText('value', null, ['class' => 'form-control']); ?>
-            </div>
-
             <div class="d-inline-block mx-1 mb-1" id="dns_add_distance_group" style="display:none;">
                 <label><?php $this->_('Namesilo.dnsrecord.distance'); ?></label>
                 <?php $this->Form->fieldText('distance', 10, ['class' => 'form-control']); ?>
@@ -164,6 +163,15 @@
                 <label><?php $this->_('Namesilo.dnsrecord.ttl'); ?></label>
                 <?php $this->Form->fieldText('ttl', 7207, ['class' => 'form-control']); ?>
             </div>
+        </div>
+
+        <div class="form-group mx-1">
+            <label for="dns_add_value"><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
+            <?php $this->Form->fieldTextarea('value', null, [
+                'class' => 'form-control',
+                'id' => 'dns_add_value',
+                'rows' => 3,
+            ]); ?>
         </div>
 
         <button class="btn btn-light float-right" type="submit" name="action" value="addDnsRecord">
@@ -278,7 +286,7 @@
                 $('#dns_edit_value').focus();
             });
 
-            $('input', panel).on('input change', refreshSave);
+            $('input, textarea', panel).on('input change', refreshSave);
 
             $('#dns_edit_cancel').on('click', function() {
                 panel.hide();

@@ -3218,7 +3218,9 @@ class Namesilo extends RegistrarModule
             'domain' => $fields->domain,
             'rrtype' => $record_type,
             'rrhost' => $this->normalizeDnsHost($post['host'] ?? '', $fields->domain),
-            'rrvalue' => trim($post['value'] ?? ''),
+            'rrvalue' => $record_type == 'TXT'
+                ? $this->normalizeTxtValue($post['value'] ?? '')
+                : trim($post['value'] ?? ''),
             'rrttl' => trim($post['ttl'] ?? ''),
         ];
         if (isset($post['record_id']) && !empty($post['record_id'])) {
@@ -3231,6 +3233,37 @@ class Namesilo extends RegistrarModule
         }
 
         return $dns_fields;
+    }
+
+    /**
+     * Converts a TXT value written in zone-file syntax into the raw value NameSilo expects.
+     * NameSilo stores quotes literally, so '"v=spf1 ~all"' would publish a record that begins
+     * with a quote character and is ignored by SPF/DKIM checkers (RFC 1035 section 5.1 quotes
+     * are delimiters, not data). Only values made up entirely of quoted strings are changed:
+     * '"a" "b"' becomes 'ab' (split DKIM keys) and \" / \\ / \DDD escapes are decoded.
+     * Anything else, e.g. 'say "hi"', is left as entered.
+     *
+     * @param string $value The TXT value as entered
+     * @return string The TXT value to send to the API
+     */
+    private function normalizeTxtValue($value)
+    {
+        $value = trim($value);
+        $string = '"(?:[^"\\\\]|\\\\.)*"';
+
+        if (!preg_match('/^' . $string . '(?:\s+' . $string . ')*$/s', $value)) {
+            return $value;
+        }
+
+        preg_match_all('/"((?:[^"\\\\]|\\\\.)*)"/s', $value, $matches);
+
+        return preg_replace_callback(
+            '/\\\\(\d{3}|.)/s',
+            function ($escape) {
+                return strlen($escape[1]) === 3 ? chr((int) $escape[1] % 256) : $escape[1];
+            },
+            implode('', $matches[1])
+        );
     }
 
     /**

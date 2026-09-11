@@ -238,7 +238,7 @@ $domain = $fields->domain ?? '';
             function display(value) {
                 return value === ''
                     ? escapeHtml(panel.getAttribute('data-text-empty'))
-                    : '<code>' + escapeHtml(value) + '</code>';
+                    : '<code class="text-break">' + escapeHtml(value) + '</code>';
             }
 
             function hostName(host) {
@@ -273,17 +273,20 @@ $domain = $fields->domain ?? '';
                 save.disabled = changes.length === 0;
                 save.setAttribute(
                     'data-confirm-message',
-                    format(
+                    '<span class="text-break">' + format(
                         escapeHtml(panel.getAttribute('data-text-confirm')),
                         escapeHtml(original.type),
                         '<strong>' + escapeHtml(hostName(original.host)) + '</strong>'
-                    ) + '<br>' + changes.join('<br>')
+                    ) + '<br>' + changes.join('<br>') + '</span>'
                 );
             }
 
             // Delete buttons use Blesta's .modal-confirm-delete binding, which reads data-confirm-message on click
             root.querySelectorAll('.dns-record-delete').forEach(function (button) {
-                button.setAttribute('data-confirm-message', escapeHtml(button.getAttribute('data-confirm-text')));
+                button.setAttribute(
+                    'data-confirm-message',
+                    '<span class="text-break">' + escapeHtml(button.getAttribute('data-confirm-text')) + '</span>'
+                );
             });
 
             // Blesta's confirmation modal reads data-confirm-message when clicked and submits the form

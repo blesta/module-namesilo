@@ -181,6 +181,14 @@
         <?php $this->Form->end(); ?>
     </div>
 
+    <style>
+        /* Long TXT values (e.g. DKIM keys) have no spaces; let them wrap inside the confirmation dialog */
+        .modal .modal-body {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+    </style>
+
     <script type="text/javascript">
         $(document).ready(function() {
             var root = $('#dns-records');

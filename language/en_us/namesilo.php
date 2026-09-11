@@ -147,7 +147,12 @@ $lang['Namesilo.tab_dnsrecord.title_list'] = 'Current DNS Records';
 $lang['Namesilo.tab_dnsrecord.title_add'] = 'Add a DNS Record';
 $lang['Namesilo.tab_dnsrecord.field_delete'] = 'Delete Record(s)';
 $lang['Namesilo.tab_dnsrecord.field_add'] = 'Add Record';
-$lang['Namesilo.tab_dnsrecord.help_text_1'] = 'On this page you can add or delete A, AAAA, CNAME, MX and TXT DNS records. Please be ware that it might take some few minutes for DNS records to propagate. <br/> To have any of these changes reflect on your domain name you must set name servers to:<br />NS1.DNSOWL.COM<br />NS2.DNSOWL.COM<br />NS3.DNSOWL.COM';
+$lang['Namesilo.tab_dnsrecord.title_edit'] = 'Edit DNS Record';
+$lang['Namesilo.tab_dnsrecord.field_edit'] = 'Edit';
+$lang['Namesilo.tab_dnsrecord.field_save'] = 'Save Record';
+$lang['Namesilo.tab_dnsrecord.field_cancel'] = 'Cancel';
+$lang['Namesilo.tab_dnsrecord.confirm_delete'] = 'Are you sure you want to delete this DNS record?';
+$lang['Namesilo.tab_dnsrecord.help_text_1'] = 'On this page you can add, edit or delete A, AAAA, CNAME, MX and TXT DNS records. Changes may take a few minutes to propagate. <br/> These records only take effect while your domain uses the following name servers:<br />NS1.DNSOWL.COM<br />NS2.DNSOWL.COM<br />NS3.DNSOWL.COM';
 
 $lang['Namesilo.dnsrecord.record_type'] = 'Type';
 $lang['Namesilo.dnsrecord.host'] = 'Host';
@@ -155,6 +160,7 @@ $lang['Namesilo.dnsrecord.value'] = 'Value';
 $lang['Namesilo.dnsrecord.distance'] = 'Priority';
 $lang['Namesilo.dnsrecord.ttl'] = 'TTL';
 $lang['Namesilo.dnsrecord.field_delete'] = 'Delete Record(s)';
+$lang['Namesilo.dnsrecord.field_actions'] = 'Actions';
 
 $lang['Namesilo.dns_records.record_type'] = 'Record Type';
 $lang['Namesilo.dns_records.record_type.a_record'] = 'A Record';

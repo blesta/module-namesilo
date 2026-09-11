@@ -3187,6 +3187,14 @@ class Namesilo extends RegistrarModule
             $records['resource_record'] = [0 => $records['resource_record']];
         }
 
+        // Relative host used to pre-fill the edit form
+        foreach ($records['resource_record'] as &$record) {
+            if (is_array($record)) {
+                $record['edit_host'] = $this->normalizeDnsHost($record['host'] ?? '', $fields->domain);
+            }
+        }
+        unset($record);
+
         // Show nameservers alert
         $this->validateAndAlertNameservers($fields->domain, $row->id ?? null);
 
@@ -3205,21 +3213,49 @@ class Namesilo extends RegistrarModule
 
     private function getDnsFields($post, $fields)
     {
+        $record_type = $post['record_type'] ?? '';
         $dns_fields = [
             'domain' => $fields->domain,
-            'rrtype' => $post['record_type'],
-            'rrhost' => $post['host'],
-            'rrvalue' => $post['value'],
-            'rrttl' => $post['ttl'],
+            'rrtype' => $record_type,
+            'rrhost' => $this->normalizeDnsHost($post['host'] ?? '', $fields->domain),
+            'rrvalue' => trim($post['value'] ?? ''),
+            'rrttl' => trim($post['ttl'] ?? ''),
         ];
         if (isset($post['record_id']) && !empty($post['record_id'])) {
+            // dnsUpdateRecord identifies the record by rrid and does not accept a type change
             $dns_fields['rrid'] = $post['record_id'];
+            unset($dns_fields['rrtype']);
         }
-        if (isset($post['distance']) && !empty($post['distance']) && $post['record_type'] == 'MX') {
-            $dns_fields['rrdistance'] = $post['distance'];
+        if (isset($post['distance']) && !empty($post['distance']) && $record_type == 'MX') {
+            $dns_fields['rrdistance'] = trim($post['distance']);
         }
 
         return $dns_fields;
+    }
+
+    /**
+     * Converts a DNS host as entered or as listed by NameSilo into the relative form the API expects
+     * (e.g. "@", "example.com" and "" all mean the domain apex; "www.example.com" becomes "www")
+     *
+     * @param string $host The host to normalize
+     * @param string $domain The domain the record belongs to
+     * @return string The host relative to the domain, or an empty string for the apex
+     */
+    private function normalizeDnsHost($host, $domain)
+    {
+        $host = rtrim(strtolower(trim($host)), '.');
+        $domain = strtolower($domain);
+
+        if ($host === '@' || $host === $domain) {
+            return '';
+        }
+
+        $suffix = '.' . $domain;
+        if (substr($host, -strlen($suffix)) === $suffix) {
+            return substr($host, 0, -strlen($suffix));
+        }
+
+        return $host;
     }
 
     /**

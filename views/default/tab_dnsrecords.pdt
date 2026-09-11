@@ -147,30 +147,31 @@ $domain = $fields->domain ?? '';
     <div class="row g-2">
         <div class="col-md-2 mb-2">
             <label class="form-label" for="dns_add_record_type"><?php $this->_('Namesilo.dnsrecord.record_type'); ?></label>
-            <?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options'], '', [
+            <?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options'], $add_record['record_type'] ?? '', [
                 'class' => 'form-select',
                 'id' => 'dns_add_record_type',
+                'required' => 'required',
             ]); ?>
         </div>
         <div class="col-md-4 mb-2">
             <label class="form-label" for="dns_add_host"><?php $this->_('Namesilo.dnsrecord.host'); ?></label>
             <div class="input-group">
-                <?php $this->Form->fieldText('host', '', ['class' => 'form-control', 'id' => 'dns_add_host']); ?>
+                <?php $this->Form->fieldText('host', $add_record['host'] ?? '', ['class' => 'form-control', 'id' => 'dns_add_host']); ?>
                 <span class="input-group-text">.<?php echo $this->Html->safe($domain); ?></span>
             </div>
         </div>
         <div class="col-md-2 mb-2 dns-add-distance" style="display:none;">
             <label class="form-label" for="dns_add_distance"><?php $this->_('Namesilo.dnsrecord.distance'); ?></label>
-            <?php $this->Form->fieldText('distance', 10, ['class' => 'form-control', 'id' => 'dns_add_distance']); ?>
+            <?php $this->Form->fieldText('distance', $add_record['distance'] ?? 10, ['class' => 'form-control', 'id' => 'dns_add_distance']); ?>
         </div>
         <div class="col-md-2 mb-2">
             <label class="form-label" for="dns_add_ttl"><?php $this->_('Namesilo.dnsrecord.ttl'); ?></label>
-            <?php $this->Form->fieldText('ttl', 7207, ['class' => 'form-control', 'id' => 'dns_add_ttl']); ?>
+            <?php $this->Form->fieldText('ttl', $add_record['ttl'] ?? 7207, ['class' => 'form-control', 'id' => 'dns_add_ttl']); ?>
         </div>
     </div>
     <div class="mb-3">
         <label class="form-label" for="dns_add_value"><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
-        <?php $this->Form->fieldTextarea('value', '', ['class' => 'form-control', 'id' => 'dns_add_value', 'rows' => 3]); ?>
+        <?php $this->Form->fieldTextarea('value', $add_record['value'] ?? '', ['class' => 'form-control', 'id' => 'dns_add_value', 'rows' => 3]); ?>
     </div>
     <div class="d-flex justify-content-end">
         <?php
@@ -231,9 +232,12 @@ $domain = $fields->domain ?? '';
             var original = {};
 
             // Show the priority field only for MX records
-            document.getElementById('dns_add_record_type').addEventListener('change', function () {
+            var add_type = document.getElementById('dns_add_record_type');
+            add_type.addEventListener('change', function () {
                 toggle('.dns-add-distance', this.value === 'MX');
             });
+            // A failed add re-renders with the typed values; show the priority field for MX
+            toggle('.dns-add-distance', add_type.value === 'MX');
 
             function display(value) {
                 return value === ''

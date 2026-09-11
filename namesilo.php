@@ -3166,7 +3166,14 @@ class Namesilo extends RegistrarModule
             if (isset($post['action'])) {
                 $success_message = null;
 
-                if ($post['action'] == 'addDnsRecord') {
+                // Catch input NameSilo would reject before calling it, with a clearer message
+                $input_errors = in_array($post['action'], ['addDnsRecord', 'updateDnsRecord'], true)
+                    ? $this->validateDnsInput($post)
+                    : [];
+
+                if ($input_errors) {
+                    $this->Input->setErrors($input_errors);
+                } elseif ($post['action'] == 'addDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsAddRecord($dns_fields);
                     $this->processResponse($api, $response);
@@ -3190,6 +3197,14 @@ class Namesilo extends RegistrarModule
                 if ($success_message && !$this->errors()) {
                     $this->setMessage('success', Language::_($success_message, true));
                 }
+
+                // Keep what was typed when adding fails, so a long value isn't lost
+                if ($post['action'] == 'addDnsRecord' && $this->errors()) {
+                    $this->view->set('add_record', array_intersect_key(
+                        $post,
+                        array_flip(['record_type', 'host', 'value', 'distance', 'ttl'])
+                    ));
+                }
             }
         }
 
@@ -3209,6 +3224,34 @@ class Namesilo extends RegistrarModule
         $this->view->setDefaultView(self::$defaultModuleView);
 
         return $this->view->fetch();
+    }
+
+    /**
+     * Checks DNS record input for mistakes NameSilo would reject with a less helpful
+     * error: no record type selected (NameSilo: "The rrtype field is required"), an empty
+     * value, or non-ASCII characters in the value, such as curly quotes pasted from a
+     * document (NameSilo: "Field Value contains invalid non-ASCII characters").
+     *
+     * @param array $post The submitted record
+     * @return array Errors keyed by field, in Input::setErrors() format (empty if valid)
+     */
+    private function validateDnsInput(array $post)
+    {
+        $errors = [];
+        $types = Configure::get('Namesilo.dns_records')['record_type']['options'] ?? [];
+        $type = $post['record_type'] ?? '';
+        if ($type === '' || !array_key_exists($type, $types)) {
+            $errors['record_type'] = ['required' => Language::_('Namesilo.!error.dns_record_type.required', true)];
+        }
+
+        $value = trim($post['value'] ?? '');
+        if ($value === '') {
+            $errors['value'] = ['empty' => Language::_('Namesilo.!error.dns_value.empty', true)];
+        } elseif (preg_match('/[^\x00-\x7F]/', $value)) {
+            $errors['value'] = ['ascii' => Language::_('Namesilo.!error.dns_value.ascii', true)];
+        }
+
+        return $errors;
     }
 
     /**

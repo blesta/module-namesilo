@@ -1,8 +1,14 @@
+    <?php
+    $dns_form_uri = $this->base_uri . 'services/manage/' . ($service_id ?? null) . '/tabClientDnsRecords/';
+    $domain = $fields->domain ?? '';
+    ?>
     <div id="dns-records" class="pad">
+        <a class="btn btn-light btn-sm float-right" href="<?php echo $this->Html->safe($dns_form_uri . '?export=zone'); ?>">
+            <i class="fas fa-download"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_export'); ?>
+        </a>
         <h4><?php $this->_('Namesilo.tab_dnsrecord.title_list'); ?></h4>
         <p class="mb-2"><?php $this->_('Namesilo.tab_dnsrecord.help_text_1'); ?></p>
 
-        <?php $dns_form_uri = $this->base_uri . 'services/manage/' . ($service_id ?? null) . '/tabClientDnsRecords/'; ?>
         <div class="table-responsive my-2">
             <table class="table table-curved table-striped">
                 <thead>
@@ -19,7 +25,10 @@
                 <tbody>
                     <?php if (isset($vars->records) && count($vars->records) > 0) {
                         foreach ($vars->records as $record) {
-                            $distance = isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] : null;
+                            $distance = isset($record['distance']) && $record['distance'] != 0
+                                ? $record['distance']
+                                : null;
+                            $fqdn = ($record['edit_host'] ?? '') !== '' ? $record['edit_host'] . '.' . $domain : $domain;
                             ?>
                             <tr>
                                 <td><?php echo $this->Html->safe($record['type'] ?? null); ?></td>
@@ -38,18 +47,20 @@
                                         <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_edit'); ?>
                                     </button>
                                     <?php
-                                    $this->Form->create($dns_form_uri, [
-                                        'class' => 'd-inline-block dns-record-delete',
-                                        'data-confirm' => $this->_('Namesilo.tab_dnsrecord.confirm_delete', true),
-                                    ]);
+                                    $this->Form->create($dns_form_uri, ['class' => 'd-inline-block']);
+                                    $this->Form->fieldHidden('action', 'deleteDnsRecord');
                                     $this->Form->fieldHidden('record_id', $record['record_id'] ?? null);
-                                    $this->Form->fieldButton(
-                                        'action',
-                                        $this->_('Namesilo.tab_dnssec.field_delete', true),
-                                        ['class' => 'btn btn-sm btn-danger', 'value' => 'deleteDnsRecord', 'type' => 'submit']
-                                    );
-                                    $this->Form->end();
                                     ?>
+                                    <a href="#" class="btn btn-sm btn-danger dns-record-delete" rel="<?php
+                                        echo $this->Html->safe($this->_(
+                                            'Namesilo.tab_dnsrecord.confirm_delete',
+                                            true,
+                                            $record['type'] ?? '',
+                                            $fqdn,
+                                            $record['value'] ?? ''
+                                        ));
+                                    ?>"><?php $this->_('Namesilo.tab_dnssec.field_delete'); ?></a>
+                                    <?php $this->Form->end(); ?>
                                 </td>
                             </tr>
                             <?php
@@ -59,11 +70,22 @@
             </table>
         </div>
 
-        <div id="dns-record-edit" class="mt-3" style="display:none;">
+        <div id="dns-record-edit" class="mt-3" style="display:none;"
+            data-domain="<?php echo $this->Html->safe($domain); ?>"
+            data-text-confirm="<?php echo $this->Html->safe($this->_('Namesilo.tab_dnsrecord.confirm_edit', true)); ?>"
+            data-text-change="<?php echo $this->Html->safe($this->_('Namesilo.tab_dnsrecord.confirm_edit_change', true)); ?>"
+            data-text-empty="<?php echo $this->Html->safe($this->_('Namesilo.tab_dnsrecord.text_empty', true)); ?>"
+            data-label-host="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.host', true)); ?>"
+            data-label-value="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.value', true)); ?>"
+            data-label-distance="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.distance', true)); ?>"
+            data-label-ttl="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.ttl', true)); ?>">
             <h4><?php $this->_('Namesilo.tab_dnsrecord.title_edit'); ?></h4>
-            <?php $this->Form->create($dns_form_uri); ?>
-            <?php $this->Form->fieldHidden('record_id', null, ['id' => 'dns_edit_record_id']); ?>
-            <?php $this->Form->fieldHidden('record_type', null, ['id' => 'dns_edit_record_type']); ?>
+            <?php
+            $this->Form->create($dns_form_uri);
+            $this->Form->fieldHidden('action', 'updateDnsRecord');
+            $this->Form->fieldHidden('record_id', null, ['id' => 'dns_edit_record_id']);
+            $this->Form->fieldHidden('record_type', null, ['id' => 'dns_edit_record_type']);
+            ?>
             <div class="form-group">
                 <div class="d-inline-block mx-1 mb-1">
                     <label><?php $this->_('Namesilo.dnsrecord.record_type'); ?></label>
@@ -75,7 +97,7 @@
                         <label class="m-0" for="dns_edit_host"><?php $this->_('Namesilo.dnsrecord.host'); ?></label>
                         <?php $this->Form->fieldText('host', null, ['class' => 'form-control', 'id' => 'dns_edit_host']); ?>
                     </div>
-                    <div class="d-inline-block">.<?php echo $this->Html->safe($fields->domain ?? ''); ?></div>
+                    <div class="d-inline-block">.<?php echo $this->Html->safe($domain); ?></div>
                 </div>
 
                 <div class="d-inline-block mx-1 mb-1">
@@ -85,7 +107,10 @@
 
                 <div class="d-inline-block mx-1 mb-1" id="dns_edit_distance_group" style="display:none;">
                     <label for="dns_edit_distance"><?php $this->_('Namesilo.dnsrecord.distance'); ?></label>
-                    <?php $this->Form->fieldText('distance', null, ['class' => 'form-control', 'id' => 'dns_edit_distance']); ?>
+                    <?php $this->Form->fieldText('distance', null, [
+                        'class' => 'form-control',
+                        'id' => 'dns_edit_distance',
+                    ]); ?>
                 </div>
 
                 <div class="d-inline-block mx-1 mb-1">
@@ -98,9 +123,9 @@
                 <button class="btn btn-light" type="button" id="dns_edit_cancel">
                     <?php $this->_('Namesilo.tab_dnsrecord.field_cancel'); ?>
                 </button>
-                <button class="btn btn-success" type="submit" name="action" value="updateDnsRecord">
-                    <i class="fas fa-save"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_save'); ?>
-                </button>
+                <a href="#" class="btn btn-light disabled" id="dns_edit_save" rel="">
+                    <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_save'); ?>
+                </a>
             </div>
             <div class="clearfix"></div>
             <?php $this->Form->end(); ?>
@@ -122,7 +147,7 @@
                     <label class="m-0"><?php $this->_('Namesilo.dnsrecord.host'); ?></label>
                     <?php $this->Form->fieldText('host', null, ['class' => 'form-control']); ?>
                 </div>
-                <div class="d-inline-block">.<?php echo $this->Html->safe($fields->domain ?? ''); ?></div>
+                <div class="d-inline-block">.<?php echo $this->Html->safe($domain); ?></div>
             </div>
 
             <div class="d-inline-block mx-1 mb-1">
@@ -147,60 +172,116 @@
         <?php $this->Form->end(); ?>
     </div>
 
-    <script>
-        (function () {
-            function ready(fn) {
-                if (document.readyState !== 'loading') {
-                    fn();
+    <script type="text/javascript">
+        $(document).ready(function() {
+            var root = $('#dns-records');
+            if (root.data('dns-bound')) {
+                return;
+            }
+            root.data('dns-bound', true);
+
+            var base_url = <?php echo json_encode($this->base_uri); ?>;
+            var panel = $('#dns-record-edit');
+            var save = $('#dns_edit_save');
+            var original = {};
+
+            // Confirm deletes with Blesta's confirmation dialog
+            $('a.dns-record-delete[rel]', root).blestaModalConfirm({
+                base_url: base_url,
+                title: <?php echo json_encode($this->_('Namesilo.tab_dnsrecord.title_delete', true)); ?>,
+                submit: true
+            });
+
+            // Show the priority field only for MX records
+            $('#dns_add_record_type').on('change', function() {
+                $('#dns_add_distance_group').toggle($(this).val() === 'MX');
+            });
+
+            function format(template) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                return template.replace(/%(\d)\$s/g, function(match, index) {
+                    return args[index - 1];
+                });
+            }
+
+            function display(value) {
+                return value === '' ? panel.data('text-empty') : '"' + value + '"';
+            }
+
+            function currentValues() {
+                return {
+                    host: $.trim($('#dns_edit_host').val()).toLowerCase().replace(/^@$/, ''),
+                    value: $.trim($('#dns_edit_value').val()),
+                    distance: original.type === 'MX' ? $.trim($('#dns_edit_distance').val()) : '',
+                    ttl: $.trim($('#dns_edit_ttl').val())
+                };
+            }
+
+            // Describe the pending change and only allow saving when something changed
+            function refreshSave() {
+                var current = currentValues();
+                var domain = panel.data('domain');
+                var changes = [];
+
+                $.each(['host', 'value', 'distance', 'ttl'], function(i, field) {
+                    if (current[field] !== original[field]) {
+                        var from = original[field];
+                        var to = current[field];
+                        if (field === 'host') {
+                            from = from === '' ? domain : from + '.' + domain;
+                            to = to === '' ? domain : to + '.' + domain;
+                        }
+                        changes.push(format(panel.data('text-change'), panel.data('label-' + field), display(from), display(to)));
+                    }
+                });
+
+                var host = original.host === '' ? domain : original.host + '.' + domain;
+                var message = format(panel.data('text-confirm'), original.type, host) + ' ' + changes.join('; ');
+
+                // blestaModalConfirm reads the message when bound, so re-bind with the current one
+                save.off('click').toggleClass('disabled', changes.length === 0).attr('rel', message);
+                if (changes.length > 0) {
+                    save.blestaModalConfirm({
+                        base_url: base_url,
+                        title: <?php echo json_encode($this->_('Namesilo.tab_dnsrecord.title_confirm_edit', true)); ?>,
+                        submit: true
+                    });
                 } else {
-                    document.addEventListener('DOMContentLoaded', fn);
+                    save.on('click', function() {
+                        return false;
+                    });
                 }
             }
 
-            ready(function () {
-                var root = document.getElementById('dns-records');
-                if (!root || root.getAttribute('data-dns-bound')) {
-                    return;
-                }
-                root.setAttribute('data-dns-bound', '1');
+            $('.dns-record-edit', root).on('click', function() {
+                var button = $(this);
+                original = {
+                    type: String(button.data('type')),
+                    host: String(button.attr('data-host')),
+                    value: String(button.attr('data-value')),
+                    distance: String(button.attr('data-distance')),
+                    ttl: String(button.attr('data-ttl'))
+                };
 
-                var panel = document.getElementById('dns-record-edit');
-                var addType = document.getElementById('dns_add_record_type');
-                var addDistance = document.getElementById('dns_add_distance_group');
+                $('#dns_edit_record_id').val(button.attr('data-record-id'));
+                $('#dns_edit_record_type').val(original.type);
+                $('#dns_edit_type_label').text(original.type);
+                $('#dns_edit_host').val(original.host);
+                $('#dns_edit_value').val(original.value);
+                $('#dns_edit_distance').val(original.distance);
+                $('#dns_edit_ttl').val(original.ttl);
+                $('#dns_edit_distance_group').toggle(original.type === 'MX');
 
-                // Show the priority field only for MX records
-                addType.addEventListener('change', function () {
-                    addDistance.style.display = this.value === 'MX' ? '' : 'none';
-                });
-
-                root.querySelectorAll('.dns-record-edit').forEach(function (button) {
-                    button.addEventListener('click', function () {
-                        var type = this.getAttribute('data-type');
-                        document.getElementById('dns_edit_record_id').value = this.getAttribute('data-record-id');
-                        document.getElementById('dns_edit_record_type').value = type;
-                        document.getElementById('dns_edit_type_label').textContent = type;
-                        document.getElementById('dns_edit_host').value = this.getAttribute('data-host');
-                        document.getElementById('dns_edit_value').value = this.getAttribute('data-value');
-                        document.getElementById('dns_edit_distance').value = this.getAttribute('data-distance');
-                        document.getElementById('dns_edit_ttl').value = this.getAttribute('data-ttl');
-                        document.getElementById('dns_edit_distance_group').style.display = type === 'MX' ? '' : 'none';
-                        panel.style.display = '';
-                        panel.scrollIntoView({behavior: 'smooth', block: 'center'});
-                        document.getElementById('dns_edit_value').focus();
-                    });
-                });
-
-                document.getElementById('dns_edit_cancel').addEventListener('click', function () {
-                    panel.style.display = 'none';
-                });
-
-                root.querySelectorAll('.dns-record-delete').forEach(function (form) {
-                    form.addEventListener('submit', function (e) {
-                        if (!window.confirm(this.getAttribute('data-confirm'))) {
-                            e.preventDefault();
-                        }
-                    });
-                });
+                refreshSave();
+                panel.show();
+                $('html, body').animate({scrollTop: panel.offset().top - 80}, 200);
+                $('#dns_edit_value').focus();
             });
-        })();
+
+            $('input', panel).on('input change', refreshSave);
+
+            $('#dns_edit_cancel').on('click', function() {
+                panel.hide();
+            });
+        });
     </script>

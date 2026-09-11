@@ -3357,13 +3357,16 @@ class Namesilo extends RegistrarModule
     private function getDnsFields($post, $fields)
     {
         $record_type = $post['record_type'] ?? '';
+
+        // The value is entered in a textarea; a line break is never valid inside a record value, and
+        // wrapped SPF/DKIM values stay valid when their lines are joined with a space
+        $value = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', $post['value'] ?? ''));
+
         $dns_fields = [
             'domain' => $fields->domain,
             'rrtype' => $record_type,
             'rrhost' => $this->normalizeDnsHost($post['host'] ?? '', $fields->domain),
-            'rrvalue' => $record_type == 'TXT'
-                ? $this->normalizeTxtValue($post['value'] ?? '')
-                : trim($post['value'] ?? ''),
+            'rrvalue' => $record_type == 'TXT' ? $this->normalizeTxtValue($value) : $value,
             'rrttl' => trim($post['ttl'] ?? ''),
         ];
         if (isset($post['record_id']) && !empty($post['record_id'])) {

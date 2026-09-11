@@ -23,7 +23,7 @@
             <?php
             foreach ($host->ip as $index => $ip) { ?>
             <tr>
-                <td><?php echo $index == 0 ? $host->host . '.' . $domain : false; ?></td>
+                <td><?php echo $index == 0 ? $this->Html->safe(($host->host ?? '') . '.' . ($domain ?? '')) : ''; ?></td>
                 <td><?php $this->Form->fieldText('hosts[' . ($host->host ?? null) . '][]', $ip, [
                     'class' => 'form-control',
                 ]); ?></td>

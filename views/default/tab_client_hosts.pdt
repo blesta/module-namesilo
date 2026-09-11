@@ -19,7 +19,7 @@
                                     <tr>
                                         <td<?php echo $index !== 0
                                             ? ' class="text-muted"'
-                                            : ''; ?>><?php echo $host->host . '.' . ($domain ?? ''); ?></td>
+                                            : ''; ?>><?php echo $this->Html->safe(($host->host ?? '') . '.' . ($domain ?? '')); ?></td>
                                         <td><?php $this->Form->fieldText(
                                             'hosts[' . (isset($host->host) ? $host->host : null) . '][]',
                                             $ip,

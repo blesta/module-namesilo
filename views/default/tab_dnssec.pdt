@@ -21,9 +21,9 @@
         <!-- List existing ds records -->
         <tbody>
             <tr>
-                <td><?php echo $record->key_tag ?? null; ?></td>
+                <td><?php echo $record->keyTag ?? null; ?></td>
                 <td><?php echo $record->algorithm ?? null; ?></td>
-                <td><?php echo $record->digest_type ?? null; ?></td>
+                <td><?php echo $record->digestType ?? null; ?></td>
                 <td><?php echo $record->digest ?? null; ?></td>
                 <td>
                     <?php
@@ -37,9 +37,9 @@
                     );
 
                     $this->Form->fieldHidden('digest', $record->digest ?? null);
-                    $this->Form->fieldHidden('key_tag', $record->key_tag ?? null);
+                    $this->Form->fieldHidden('keyTag', $record->keyTag ?? null);
                     $this->Form->fieldHidden('algorithm', $record->algorithm ?? null);
-                    $this->Form->fieldHidden('digest_type', $record->digest_type ?? null);
+                    $this->Form->fieldHidden('digestType', $record->digestType ?? null);
 
                     $button_attributes = [
                         'class' => 'btn btn-sm btn-outline-danger',
@@ -83,11 +83,11 @@
         </thead>
         <tbody>
             <tr>
-                <td><?php $this->Form->fieldText('key_tag', '', ['class' => 'form-control']); ?></td>
+                <td><?php $this->Form->fieldText('keyTag', '', ['class' => 'form-control']); ?></td>
                 <td><?php $this->Form->fieldSelect('algorithm', $vars->selects['algorithm']['options'], '', [
                     'class' => 'form-select',
                 ]); ?></td>
-                <td><?php $this->Form->fieldSelect('digest_type', $vars->selects['digest_type']['options'], '', [
+                <td><?php $this->Form->fieldSelect('digestType', $vars->selects['digest_type']['options'], '', [
                     'class' => 'form-select',
                 ]); ?></td>
                 <td><?php $this->Form->fieldText('digest', '', ['class' => 'form-control']); ?></td>

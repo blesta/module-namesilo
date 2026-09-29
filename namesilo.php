@@ -3151,16 +3151,61 @@ class Namesilo extends RegistrarModule
         $fields = $this->serviceFieldsToObject($service->fields);
         $this->view->set('domain', $fields->domain);
 
+        // Download the zone as a standard BIND zone file
+        if (($get['export'] ?? null) === 'zone') {
+            Loader::loadComponents($this, ['Download']);
+            $this->Download->setContentType('text/plain');
+            $this->Download->downloadData(
+                $fields->domain . '.txt',
+                $this->buildZoneFile($fields->domain, $this->getDnsRecords($dns, $fields->domain))
+            );
+            exit;
+        }
+
         if (!empty($post)) {
             if (isset($post['action'])) {
-                if ($post['action'] == 'addDnsRecord') {
+                $success_message = null;
+
+                // Catch input NameSilo would reject before calling it, with a clearer message
+                $input_errors = in_array($post['action'], ['addDnsRecord', 'updateDnsRecord'], true)
+                    ? $this->validateDnsInput($post)
+                    : [];
+
+                // SPF/DMARC/DKIM rules that break the domain's email when violated (one record
+                // per host/selector, and DMARC/DKIM only where receivers look for them)
+                if (!$input_errors
+                    && in_array($post['action'], ['addDnsRecord', 'updateDnsRecord'], true)
+                    && ($post['record_type'] ?? '') === 'TXT'
+                ) {
+                    $dns_fields = $this->getDnsFields($post, $fields);
+                    if (self::emailAuthRecordKind($dns_fields['rrvalue']) !== null) {
+                        $conflict = $this->emailAuthConflict(
+                            $this->getDnsRecords($dns, $fields->domain),
+                            $dns_fields['rrhost'],
+                            $dns_fields['rrvalue'],
+                            !empty($post['record_id']) ? $post['record_id'] : null,
+                            $fields->domain
+                        );
+                        if ($conflict) {
+                            $input_errors = [
+                                'value' => ['email_auth' => Language::_($conflict['key'], true, ...$conflict['args'])]
+                            ];
+                        }
+                    }
+                }
+
+                if ($input_errors) {
+                    $this->Input->setErrors($input_errors);
+                } elseif ($post['action'] == 'addDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsAddRecord($dns_fields);
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_added';
                 } elseif ($post['action'] == 'updateDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsUpdateRecord($dns_fields);
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_updated';
                 } elseif ($post['action'] == 'deleteDnsRecord') {
                     $response = $dns->dnsDeleteRecord(
                         [
@@ -3169,23 +3214,24 @@ class Namesilo extends RegistrarModule
                         ]
                     );
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_deleted';
+                }
+
+                if ($success_message && !$this->errors()) {
+                    $this->setMessage('success', Language::_($success_message, true));
+                }
+
+                // Keep what was typed when adding fails, so a long value isn't lost
+                if ($post['action'] == 'addDnsRecord' && $this->errors()) {
+                    $this->view->set('add_record', array_intersect_key(
+                        $post,
+                        array_flip(['record_type', 'host', 'value', 'distance', 'ttl'])
+                    ));
                 }
             }
         }
 
-        $records = $dns->dnsListRecords(['domain' => $fields->domain])->response(true);
-
-        // Get a consistent format because XML parsing in PHP is inconsistent
-        if (isset($records['resource_record']) && !is_array($records['resource_record'])) {
-            $records['resource_record'] = (array) $records['resource_record'];
-        } elseif (!isset($records['resource_record'])) {
-            $records['resource_record'] = [];
-        }
-
-        // We are expecting a multidimensional array
-        if ($this->isMultiArray($records['resource_record']) === false) {
-            $records['resource_record'] = [0 => $records['resource_record']];
-        }
+        $records = ['resource_record' => $this->getDnsRecords($dns, $fields->domain)];
 
         // Show nameservers alert
         $this->validateAndAlertNameservers($fields->domain, $row->id ?? null);
@@ -3203,23 +3249,358 @@ class Namesilo extends RegistrarModule
         return $this->view->fetch();
     }
 
+    /**
+     * Which email-authentication record a TXT value is, by its required leading version tag:
+     * SPF ("v=spf1", RFC 7208 4.5), DMARC ("v=DMARC1", RFC 7489 6.3) or DKIM ("v=DKIM1",
+     * RFC 6376 3.6.1). Case-insensitive, since some providers publish "V=SPF1".
+     *
+     * @param string $value The raw TXT value (already unquoted)
+     * @return string|null 'spf', 'dmarc', 'dkim', or null for any other TXT value
+     */
+    private static function emailAuthRecordKind($value)
+    {
+        $value = trim((string) $value);
+        if (preg_match('/^v=spf1(\s|$)/i', $value)) {
+            return 'spf';
+        }
+        if (preg_match('/^v=dmarc1\s*(;|$)/i', $value)) {
+            return 'dmarc';
+        }
+        if (preg_match('/^v=dkim1\s*(;|$)/i', $value)) {
+            return 'dkim';
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks a new or edited TXT value against the email-authentication rules that break mail
+     * when violated, and returns the problem as a language key plus arguments (or null):
+     *
+     *  - a second SPF record at the same host: SPF evaluation returns permerror, so SPF fails
+     *    for all of the domain's mail (RFC 7208 3.2 / 4.5)
+     *  - a second DMARC record at the same host: receivers ignore DMARC entirely (RFC 7489 6.6.3)
+     *  - a second DKIM key at the same selector: results are undefined (RFC 6376 3.6.2.2)
+     *  - a DMARC record anywhere but _dmarc, or a DKIM key anywhere but <selector>._domainkey,
+     *    where receivers never look for it
+     *
+     * @param array $records The domain's current records (getDnsRecords())
+     * @param string $host The host being saved (relative, as normalizeDnsHost() returns)
+     * @param string $value The TXT value being saved (unquoted)
+     * @param string|null $record_id The record being edited (excluded from the check), or null
+     * @param string $domain The domain
+     * @return array|null ['key' => language key, 'args' => [...]] or null when fine
+     */
+    private function emailAuthConflict(array $records, $host, $value, $record_id, $domain)
+    {
+        $kind = self::emailAuthRecordKind($value);
+        if ($kind === null) {
+            return null;
+        }
+
+        $fqdn = $host === '' ? $domain : $host . '.' . $domain;
+        if ($kind === 'dmarc' && !preg_match('/^_dmarc(\.|$)/', $host)) {
+            return ['key' => 'Namesilo.!error.dns_value.dmarc_host', 'args' => ['_dmarc.' . $domain]];
+        }
+        if ($kind === 'dkim' && !preg_match('/(^|\.)_domainkey(\.|$)/', $host)) {
+            return ['key' => 'Namesilo.!error.dns_value.dkim_host', 'args' => [$domain]];
+        }
+
+        foreach ($records as $record) {
+            if (!is_array($record) || strtoupper($record['type'] ?? '') !== 'TXT') {
+                continue;
+            }
+            if ($record_id !== null && ($record['record_id'] ?? null) === $record_id) {
+                continue;
+            }
+            if ($this->normalizeDnsHost($record['host'] ?? '', $domain) !== $host) {
+                continue;
+            }
+            // Records created elsewhere may carry literal zone-file quotes; compare unquoted
+            $existing = $this->normalizeTxtValue((string) ($record['value'] ?? ''));
+            if (self::emailAuthRecordKind($existing) === $kind) {
+                return ['key' => 'Namesilo.!error.dns_value.duplicate_' . $kind, 'args' => [$fqdn, $existing]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks DNS record input for mistakes NameSilo would reject with a less helpful
+     * error: no record type selected (NameSilo: "The rrtype field is required"), an empty
+     * value, or non-ASCII characters in the value, such as curly quotes pasted from a
+     * document (NameSilo: "Field Value contains invalid non-ASCII characters").
+     *
+     * @param array $post The submitted record
+     * @return array Errors keyed by field, in Input::setErrors() format (empty if valid)
+     */
+    private function validateDnsInput(array $post)
+    {
+        $errors = [];
+        $types = Configure::get('Namesilo.dns_records')['record_type']['options'] ?? [];
+        $type = $post['record_type'] ?? '';
+        if ($type === '' || !array_key_exists($type, $types)) {
+            $errors['record_type'] = ['required' => Language::_('Namesilo.!error.dns_record_type.required', true)];
+        }
+
+        $value = trim($post['value'] ?? '');
+        if ($value === '') {
+            $errors['value'] = ['empty' => Language::_('Namesilo.!error.dns_value.empty', true)];
+        } elseif (preg_match('/[^\x00-\x7F]/', $value)) {
+            $errors['value'] = ['ascii' => Language::_('Namesilo.!error.dns_value.ascii', true)];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Fetches the DNS records for a domain in a consistent format
+     *
+     * @param NamesiloDomainsDns $dns The NameSilo DNS API command object
+     * @param string $domain The domain to fetch records for
+     * @return array A list of records, each including an "edit_host" key holding the host relative to the domain
+     */
+    private function getDnsRecords(NamesiloDomainsDns $dns, $domain)
+    {
+        $records = $dns->dnsListRecords(['domain' => $domain])->response(true);
+
+        // Get a consistent format because XML parsing in PHP is inconsistent
+        if (isset($records['resource_record']) && !is_array($records['resource_record'])) {
+            $records['resource_record'] = (array) $records['resource_record'];
+        } elseif (!isset($records['resource_record'])) {
+            $records['resource_record'] = [];
+        }
+
+        // We are expecting a multidimensional array
+        if ($this->isMultiArray($records['resource_record']) === false) {
+            $records['resource_record'] = [0 => $records['resource_record']];
+        }
+
+        // Relative host used to pre-fill the edit form
+        foreach ($records['resource_record'] as &$record) {
+            if (is_array($record)) {
+                $record['edit_host'] = $this->normalizeDnsHost($record['host'] ?? '', $domain);
+            }
+        }
+        unset($record);
+
+        return $records['resource_record'];
+    }
+
+    /**
+     * Builds a standard BIND zone file (RFC 1035 section 5 master file format) from NameSilo DNS records
+     *
+     * @param string $domain The domain the records belong to
+     * @param array $records A list of records as returned by getDnsRecords()
+     * @return string The zone file contents
+     */
+    private function buildZoneFile($domain, array $records)
+    {
+        $lines = [
+            '; Zone file for ' . $domain,
+            '; Exported ' . gmdate('Y-m-d H:i:s') . ' UTC from NameSilo DNS',
+            '; SOA and NS records are managed by NameSilo and are not included',
+            '$ORIGIN ' . $domain . '.',
+            '$TTL 7207',
+            '',
+        ];
+
+        foreach ($records as $record) {
+            if (!is_array($record) || empty($record['type'])) {
+                continue;
+            }
+
+            $type = strtoupper($record['type']);
+            $host = $this->normalizeDnsHost($record['host'] ?? '', $domain);
+            $value = (string) ($record['value'] ?? '');
+
+            switch ($type) {
+                case 'A':
+                case 'AAAA':
+                    $data = $value;
+                    break;
+                case 'CNAME':
+                    $data = $this->toAbsoluteDnsName($value, $domain);
+                    break;
+                case 'MX':
+                    $data = (int) ($record['distance'] ?? 0) . ' ' . $this->toAbsoluteDnsName($value, $domain);
+                    break;
+                case 'TXT':
+                    $data = $this->quoteTxtValue($value);
+                    break;
+                case 'SRV':
+                    // NameSilo uses "weight:port:target" with the priority as the distance; the target host
+                    // must be fully-qualified
+                    $parts = $this->splitDnsValue($value);
+                    $parts[] = $this->toAbsoluteDnsName(array_pop($parts), $domain);
+                    $lines[] = '; SRV record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = (int) ($record['distance'] ?? 0) . ' ' . implode(' ', $parts);
+                    break;
+                case 'CAA':
+                    // NameSilo uses "flag:tag:value"; zone files quote the value (RFC 8659 section 4.1.1)
+                    $parts = array_pad($this->splitDnsValue($value), 3, '');
+                    $lines[] = '; CAA record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = (int) $parts[0] . ' ' . $parts[1] . ' "' . addcslashes(trim($parts[2], '"'), '"\\') . '"';
+                    break;
+                default:
+                    $lines[] = '; ' . $type
+                        . ' record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = trim(
+                        (isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] . ' ' : '')
+                        . $value
+                    );
+            }
+
+            $name = $host === '' ? '@' : $host;
+            $lines[] = implode("\t", [$name, (int) ($record['ttl'] ?? 7207), 'IN', $type, $data]);
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Splits a NameSilo SRV/CAA value into its three parts. NameSilo documents these as "X:Y:Z"
+     * (SRV weight:port:target, CAA flag:tag:value); space-separated values are also accepted. Only the
+     * first two separators split, so a CAA value such as "mailto:admin@example.com" stays intact.
+     *
+     * @param string $value The value as listed by NameSilo
+     * @return array The parts of the value
+     */
+    private function splitDnsValue($value)
+    {
+        $value = trim($value);
+
+        return preg_match('/\s/', $value) ? preg_split('/\s+/', $value, 3) : explode(':', $value, 3);
+    }
+
+    /**
+     * Converts a host name into a fully-qualified zone file name (with a trailing dot)
+     *
+     * @param string $name The host name, e.g. "mail.example.com" or "@"
+     * @param string $domain The domain the record belongs to
+     * @return string The fully-qualified name, e.g. "mail.example.com."
+     */
+    private function toAbsoluteDnsName($name, $domain)
+    {
+        $name = trim($name);
+
+        if ($name === '' || $name === '@') {
+            return $domain . '.';
+        }
+
+        return substr($name, -1) === '.' ? $name : $name . '.';
+    }
+
+    /**
+     * Formats a raw TXT value as one or more quoted zone file character-strings (RFC 1035 sections 3.3 and 5.1),
+     * splitting values longer than 255 bytes and escaping quotes, backslashes and non-printable bytes
+     *
+     * @param string $value The raw TXT value
+     * @return string The quoted value, e.g. "v=spf1 ~all"
+     */
+    private function quoteTxtValue($value)
+    {
+        if ($value === '') {
+            return '""';
+        }
+
+        $strings = [];
+        foreach (str_split($value, 255) as $chunk) {
+            $strings[] = '"' . preg_replace_callback(
+                '/[\\\\"]|[^\x20-\x7e]/',
+                function ($char) {
+                    return in_array($char[0], ['\\', '"']) ? '\\' . $char[0] : sprintf('\\%03d', ord($char[0]));
+                },
+                $chunk
+            ) . '"';
+        }
+
+        return implode(' ', $strings);
+    }
+
     private function getDnsFields($post, $fields)
     {
+        $record_type = $post['record_type'] ?? '';
+
+        // The value is entered in a textarea; a line break is never valid inside a record value, and
+        // wrapped SPF/DKIM values stay valid when their lines are joined with a space
+        $value = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', $post['value'] ?? ''));
+
         $dns_fields = [
             'domain' => $fields->domain,
-            'rrtype' => $post['record_type'],
-            'rrhost' => $post['host'],
-            'rrvalue' => $post['value'],
-            'rrttl' => $post['ttl'],
+            'rrtype' => $record_type,
+            'rrhost' => $this->normalizeDnsHost($post['host'] ?? '', $fields->domain),
+            'rrvalue' => $record_type == 'TXT' ? $this->normalizeTxtValue($value) : $value,
+            'rrttl' => trim($post['ttl'] ?? ''),
         ];
         if (isset($post['record_id']) && !empty($post['record_id'])) {
+            // dnsUpdateRecord identifies the record by rrid and does not accept a type change
             $dns_fields['rrid'] = $post['record_id'];
+            unset($dns_fields['rrtype']);
         }
-        if (isset($post['distance']) && !empty($post['distance']) && $post['record_type'] == 'MX') {
-            $dns_fields['rrdistance'] = $post['distance'];
+        // Priority 0 is valid for MX, and NameSilo applies a default of 10 when rrdistance is omitted
+        if ($record_type == 'MX' && isset($post['distance']) && trim($post['distance']) !== '') {
+            $dns_fields['rrdistance'] = trim($post['distance']);
         }
 
         return $dns_fields;
+    }
+
+    /**
+     * Converts a TXT value written in zone-file syntax into the raw value NameSilo expects.
+     * NameSilo stores quotes literally, so '"v=spf1 ~all"' would publish a record that begins
+     * with a quote character and is ignored by SPF/DKIM checkers (RFC 1035 section 5.1 quotes
+     * are delimiters, not data). Only values made up entirely of quoted strings are changed:
+     * '"a" "b"' becomes 'ab' (split DKIM keys) and \" / \\ / \DDD escapes are decoded.
+     * Anything else, e.g. 'say "hi"', is left as entered.
+     *
+     * @param string $value The TXT value as entered
+     * @return string The TXT value to send to the API
+     */
+    private function normalizeTxtValue($value)
+    {
+        $value = trim($value);
+        $string = '"(?:[^"\\\\]|\\\\.)*"';
+
+        if (!preg_match('/^' . $string . '(?:\s+' . $string . ')*$/s', $value)) {
+            return $value;
+        }
+
+        preg_match_all('/"((?:[^"\\\\]|\\\\.)*)"/s', $value, $matches);
+
+        return preg_replace_callback(
+            '/\\\\(\d{3}|.)/s',
+            function ($escape) {
+                return strlen($escape[1]) === 3 ? chr((int) $escape[1] % 256) : $escape[1];
+            },
+            implode('', $matches[1])
+        );
+    }
+
+    /**
+     * Converts a DNS host as entered or as listed by NameSilo into the relative form the API expects
+     * (e.g. "@", "example.com" and "" all mean the domain apex; "www.example.com" becomes "www")
+     *
+     * @param string $host The host to normalize
+     * @param string $domain The domain the record belongs to
+     * @return string The host relative to the domain, or an empty string for the apex
+     */
+    private function normalizeDnsHost($host, $domain)
+    {
+        $host = rtrim(strtolower(trim($host)), '.');
+        $domain = strtolower($domain);
+
+        if ($host === '@' || $host === $domain) {
+            return '';
+        }
+
+        $suffix = '.' . $domain;
+        if (substr($host, -strlen($suffix)) === $suffix) {
+            return substr($host, 0, -strlen($suffix));
+        }
+
+        return $host;
     }
 
     /**

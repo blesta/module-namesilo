@@ -1,8 +1,18 @@
 <?php /** @var View $this **/ ?>
 
+<?php
+$dns_form_uri = $this->base_uri . 'clients/servicetab/' . ($client_id ?? null) . '/' . ($service_id ?? null)
+    . '/tabDnsRecords/';
+$domain = $fields->domain ?? '';
+?>
 <div id="dns-records">
     <h6 class="form-section-header first"><?php $this->_('Namesilo.tab_dnsrecord.title_list'); ?></h6>
-    <p class="text-muted"><?php $this->_('Namesilo.tab_dnsrecord.help_text_1'); ?></p>
+    <div class="d-flex justify-content-between align-items-start">
+        <p class="text-muted"><?php $this->_('Namesilo.tab_dnsrecord.help_text_1'); ?></p>
+        <a class="btn btn-sm btn-outline-secondary text-nowrap ms-3" href="<?php echo $this->Html->safe($dns_form_uri . '?export=zone'); ?>">
+            <i class="bi bi-download"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_export'); ?>
+        </a>
+    </div>
     <table class="table">
         <thead>
             <tr>
@@ -11,120 +21,313 @@
                 <th><span><?php $this->_('Namesilo.dnsrecord.value'); ?></span></th>
                 <th><span><?php $this->_('Namesilo.dnsrecord.distance'); ?></span></th>
                 <th><span><?php $this->_('Namesilo.dnsrecord.ttl'); ?></span></th>
-                <th><span><?php $this->_('Namesilo.dnsrecord.field_delete'); ?></span></th>
+                <th><span><?php $this->_('Namesilo.dnsrecord.field_actions'); ?></span></th>
             </tr>
         </thead>
         <tbody>
-            <?php if (count($vars->records) > 0 && isset($vars->records)) {
-                $i = 0;
-                foreach ($vars->records as $record) { ?>
+            <?php if (isset($vars->records) && count($vars->records) > 0) {
+                foreach ($vars->records as $record) {
+                    // NameSilo lists a distance of 0 for non-MX records, but 0 is a valid MX priority
+                    $distance = ($record['type'] ?? '') === 'MX' || !empty($record['distance'])
+                        ? ($record['distance'] ?? null)
+                        : null;
+                    $fqdn = ($record['edit_host'] ?? '') !== '' ? $record['edit_host'] . '.' . $domain : $domain;
+                    ?>
             <tr>
-                <td><?php echo $record['type'] ?? null; ?></td>
-                <td><?php echo $record['host'] ?? null; ?></td>
-                <td><?php echo $record['value'] ?? null; ?></td>
-                <td><?php echo isset($record['distance']) && $record['distance'] != 0
-                    ? $record['distance']
-                    : null; ?></td>
-                <td><?php echo $record['ttl'] ?? null; ?></td>
-                <td>
+                <td><?php echo $this->Html->safe($record['type'] ?? null); ?></td>
+                <td><?php echo $this->Html->safe($record['host'] ?? null); ?></td>
+                <td class="text-break"><?php echo $this->Html->safe($record['value'] ?? null); ?></td>
+                <td><?php echo $this->Html->safe($distance); ?></td>
+                <td><?php echo $this->Html->safe($record['ttl'] ?? null); ?></td>
+                <td class="text-nowrap">
+                    <button type="button" class="btn btn-sm btn-outline-secondary dns-record-edit"
+                        data-record-id="<?php echo $this->Html->safe($record['record_id'] ?? ''); ?>"
+                        data-type="<?php echo $this->Html->safe($record['type'] ?? ''); ?>"
+                        data-host="<?php echo $this->Html->safe($record['edit_host'] ?? ''); ?>"
+                        data-value="<?php echo $this->Html->safe($record['value'] ?? ''); ?>"
+                        data-distance="<?php echo $this->Html->safe($distance ?? ''); ?>"
+                        data-ttl="<?php echo $this->Html->safe($record['ttl'] ?? ''); ?>">
+                        <?php $this->_('Namesilo.tab_dnsrecord.field_edit'); ?>
+                    </button>
                     <?php
-                    $this->Form->create(
-                        $this->base_uri .
-                            'clients/servicetab/' .
-                            ($client_id ?? null) .
-                            '/' .
-                            ($service_id ?? null) .
-                            '/tabDnsRecords/',
-                    );
+                    $this->Form->create($dns_form_uri, ['class' => 'd-inline-block']);
+                    $this->Form->fieldHidden('action', 'deleteDnsRecord');
                     $this->Form->fieldHidden('record_id', $record['record_id'] ?? null);
-
-                    $button_attributes = [
-                        'class' => 'btn btn-sm btn-outline-danger',
-                        'value' => 'deleteDnsRecord',
-                        'type' => 'submit',
-                    ];
-
+                    // The confirmation modal renders data-confirm-message as HTML, so it is set from this
+                    // plain-text message by the script below after escaping
                     $this->Form->fieldButton(
-                        'action',
+                        'delete',
                         $this->_('Namesilo.tab_dnssec.field_delete', true),
-                        $button_attributes,
+                        [
+                            'class' => 'btn btn-sm btn-outline-danger modal-confirm-delete dns-record-delete',
+                            'type' => 'button',
+                            'data-confirm-title' => $this->_('Namesilo.tab_dnsrecord.title_delete', true),
+                            'data-confirm-text' => $this->_(
+                                'Namesilo.tab_dnsrecord.confirm_delete',
+                                true,
+                                $record['type'] ?? '',
+                                $fqdn,
+                                $record['value'] ?? ''
+                            ),
+                        ]
                     );
-
                     $this->Form->end();
                     ?>
                 </td>
             </tr>
-                    <?php $i++;
+                    <?php
                 }
             } ?>
         </tbody>
     </table>
 
+    <div id="dns-record-edit" style="display:none;"
+        data-domain="<?php echo $this->Html->safe($domain); ?>"
+        data-text-confirm="<?php echo $this->Html->safe($this->_('Namesilo.tab_dnsrecord.confirm_edit', true)); ?>"
+        data-text-change="<?php echo $this->Html->safe($this->_('Namesilo.tab_dnsrecord.confirm_edit_change', true)); ?>"
+        data-text-empty="<?php echo $this->Html->safe($this->_('Namesilo.tab_dnsrecord.text_empty', true)); ?>"
+        data-label-host="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.host', true)); ?>"
+        data-label-value="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.value', true)); ?>"
+        data-label-distance="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.distance', true)); ?>"
+        data-label-ttl="<?php echo $this->Html->safe($this->_('Namesilo.dnsrecord.ttl', true)); ?>">
+        <h6 class="form-section-header"><?php $this->_('Namesilo.tab_dnsrecord.title_edit'); ?></h6>
+        <?php
+        $this->Form->create($dns_form_uri);
+        $this->Form->fieldHidden('action', 'updateDnsRecord');
+        $this->Form->fieldHidden('record_id', null, ['id' => 'dns_edit_record_id']);
+        $this->Form->fieldHidden('record_type', null, ['id' => 'dns_edit_record_type']);
+        ?>
+        <div class="row g-2">
+            <div class="col-md-2 mb-2">
+                <label class="form-label"><?php $this->_('Namesilo.dnsrecord.record_type'); ?></label>
+                <p class="form-control-plaintext" id="dns_edit_type_label"></p>
+            </div>
+            <div class="col-md-4 mb-2">
+                <label class="form-label" for="dns_edit_host"><?php $this->_('Namesilo.dnsrecord.host'); ?></label>
+                <div class="input-group">
+                    <?php $this->Form->fieldText('host', null, ['class' => 'form-control', 'id' => 'dns_edit_host']); ?>
+                    <span class="input-group-text">.<?php echo $this->Html->safe($domain); ?></span>
+                </div>
+            </div>
+            <div class="col-md-2 mb-2 dns-edit-distance" style="display:none;">
+                <label class="form-label" for="dns_edit_distance"><?php $this->_('Namesilo.dnsrecord.distance'); ?></label>
+                <?php $this->Form->fieldText('distance', null, ['class' => 'form-control', 'id' => 'dns_edit_distance']); ?>
+            </div>
+            <div class="col-md-2 mb-2">
+                <label class="form-label" for="dns_edit_ttl"><?php $this->_('Namesilo.dnsrecord.ttl'); ?></label>
+                <?php $this->Form->fieldText('ttl', null, ['class' => 'form-control', 'id' => 'dns_edit_ttl']); ?>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dns_edit_value"><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
+            <?php $this->Form->fieldTextarea('value', null, ['class' => 'form-control', 'id' => 'dns_edit_value', 'rows' => 3]); ?>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mb-3">
+            <?php
+            $this->Form->fieldButton('cancel', $this->_('Namesilo.tab_dnsrecord.field_cancel', true), [
+                'class' => 'btn btn-outline-secondary',
+                'type' => 'button',
+                'id' => 'dns_edit_cancel',
+            ]);
+            $this->Form->fieldButton('save', $this->_('Namesilo.tab_dnsrecord.field_save', true), [
+                'class' => 'btn btn-primary',
+                'type' => 'button',
+                'id' => 'dns_edit_save',
+                'disabled' => 'disabled',
+                'data-confirm-title' => $this->_('Namesilo.tab_dnsrecord.title_confirm_edit', true),
+                'data-confirm-button' => $this->_('Namesilo.tab_dnsrecord.field_save', true),
+            ]);
+            ?>
+        </div>
+        <?php $this->Form->end(); ?>
+    </div>
+
     <h6 class="form-section-header"><?php $this->_('Namesilo.tab_dnsrecord.title_add'); ?></h6>
-                    <?php $this->Form->create(
-                        $this->base_uri .
-                            'clients/servicetab/' .
-                            ($client_id ?? null) .
-                            '/' .
-                            ($service_id ?? null) .
-                            '/tabDnsRecords/',
-                    ); ?>
-    <table class="table">
-        <!-- Add New DNS Record -->
-        <thead>
-            <tr>
-                <th><span><?php $this->_('Namesilo.dnsrecord.record_type'); ?></span></th>
-                <th><span><?php $this->_('Namesilo.dnsrecord.host'); ?></span></th>
-                <th><span><?php $this->_('Namesilo.dnsrecord.value'); ?></span></th>
-                <th class="distance" style="display:none;"><span><?php $this->_(
-                    'Namesilo.dnsrecord.distance',
-                ); ?></span></th>
-                <th><span><?php $this->_('Namesilo.dnsrecord.ttl'); ?></span></th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options'], '', [
-                    'class' => 'form-select',
-                ]); ?></td>
-                <td><?php $this->Form->fieldText('host', '', ['class' => 'form-control']); ?></td>
-                <td><?php $this->Form->fieldText('value', '', ['class' => 'form-control']); ?></td>
-                <td class="distance" style="display:none;"><?php $this->Form->fieldText('distance', 10, [
-                    'class' => 'form-control',
-                ]); ?></td>
-                <td><?php $this->Form->fieldText('ttl', 7207, ['class' => 'form-control']); ?></td>
-                <td>
-                    <?php
-                    $button_attributes = [
-                        'class' => 'btn btn-primary',
-                        'value' => 'addDnsRecord',
-                        'type' => 'submit',
-                    ];
-
-                    $this->Form->fieldButton(
-                        'action',
-                        $this->_('Namesilo.tab_dnsrecord.field_add', true),
-                        $button_attributes,
-                    );
-                    ?>
-                </td>
-
-            </tr>
-        </tbody>
-    </table>
-                    <?php $this->Form->end(); ?>
+    <?php $this->Form->create($dns_form_uri); ?>
+    <div class="row g-2">
+        <div class="col-md-2 mb-2">
+            <label class="form-label" for="dns_add_record_type"><?php $this->_('Namesilo.dnsrecord.record_type'); ?></label>
+            <?php $this->Form->fieldSelect('record_type', $vars->selects['record_type']['options'], $add_record['record_type'] ?? '', [
+                'class' => 'form-select',
+                'id' => 'dns_add_record_type',
+                'required' => 'required',
+            ]); ?>
+        </div>
+        <div class="col-md-4 mb-2">
+            <label class="form-label" for="dns_add_host"><?php $this->_('Namesilo.dnsrecord.host'); ?></label>
+            <div class="input-group">
+                <?php $this->Form->fieldText('host', $add_record['host'] ?? '', ['class' => 'form-control', 'id' => 'dns_add_host']); ?>
+                <span class="input-group-text">.<?php echo $this->Html->safe($domain); ?></span>
+            </div>
+        </div>
+        <div class="col-md-2 mb-2 dns-add-distance" style="display:none;">
+            <label class="form-label" for="dns_add_distance"><?php $this->_('Namesilo.dnsrecord.distance'); ?></label>
+            <?php $this->Form->fieldText('distance', $add_record['distance'] ?? 10, ['class' => 'form-control', 'id' => 'dns_add_distance']); ?>
+        </div>
+        <div class="col-md-2 mb-2">
+            <label class="form-label" for="dns_add_ttl"><?php $this->_('Namesilo.dnsrecord.ttl'); ?></label>
+            <?php $this->Form->fieldText('ttl', $add_record['ttl'] ?? 7207, ['class' => 'form-control', 'id' => 'dns_add_ttl']); ?>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="dns_add_value"><?php $this->_('Namesilo.dnsrecord.value'); ?></label>
+        <?php $this->Form->fieldTextarea('value', $add_record['value'] ?? '', ['class' => 'form-control', 'id' => 'dns_add_value', 'rows' => 3]); ?>
+    </div>
+    <div class="d-flex justify-content-end">
+        <?php
+        $this->Form->fieldButton('action', $this->_('Namesilo.tab_dnsrecord.field_add', true), [
+            'class' => 'btn btn-primary',
+            'value' => 'addDnsRecord',
+            'type' => 'submit',
+        ]);
+        ?>
+    </div>
+    <?php $this->Form->end(); ?>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('[name="record_type"]').forEach(function(el) {
-            el.addEventListener('change', function() {
-                var display = this.value === 'MX' ? '' : 'none';
-                document.querySelectorAll('.distance').forEach(function(d) {
-                    d.style.display = display;
+    (function () {
+        function ready(fn) {
+            if (document.readyState !== 'loading') {
+                fn();
+            } else {
+                document.addEventListener('DOMContentLoaded', fn);
+            }
+        }
+
+        function toggle(selector, show) {
+            document.querySelectorAll(selector).forEach(function (el) {
+                el.style.display = show ? '' : 'none';
+            });
+        }
+
+        function escapeHtml(text) {
+            var el = document.createElement('div');
+            el.textContent = text;
+            return el.innerHTML;
+        }
+
+        function format(template) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            return template.replace(/%(\d)\$s/g, function (match, index) {
+                return args[index - 1];
+            });
+        }
+
+        ready(function () {
+            var root = document.getElementById('dns-records');
+            if (!root || root.getAttribute('data-dns-bound')) {
+                return;
+            }
+            root.setAttribute('data-dns-bound', '1');
+
+            var panel = document.getElementById('dns-record-edit');
+            var save = document.getElementById('dns_edit_save');
+            var fields = {
+                host: document.getElementById('dns_edit_host'),
+                value: document.getElementById('dns_edit_value'),
+                distance: document.getElementById('dns_edit_distance'),
+                ttl: document.getElementById('dns_edit_ttl')
+            };
+            var original = {};
+
+            // Show the priority field only for MX records
+            var add_type = document.getElementById('dns_add_record_type');
+            add_type.addEventListener('change', function () {
+                toggle('.dns-add-distance', this.value === 'MX');
+            });
+            // A failed add re-renders with the typed values; show the priority field for MX
+            toggle('.dns-add-distance', add_type.value === 'MX');
+
+            function display(value) {
+                return value === ''
+                    ? escapeHtml(panel.getAttribute('data-text-empty'))
+                    : '<code class="text-break">' + escapeHtml(value) + '</code>';
+            }
+
+            function hostName(host) {
+                var domain = panel.getAttribute('data-domain');
+                return host === '' ? domain : host + '.' + domain;
+            }
+
+            // Describe the pending change (as HTML, which the confirmation modal renders) and only allow
+            // saving when something changed
+            function refreshSave() {
+                var current = {
+                    host: fields.host.value.trim().toLowerCase().replace(/^@$/, ''),
+                    value: fields.value.value.trim(),
+                    distance: original.type === 'MX' ? fields.distance.value.trim() : '',
+                    ttl: fields.ttl.value.trim()
+                };
+                var changes = [];
+
+                ['host', 'value', 'distance', 'ttl'].forEach(function (field) {
+                    if (current[field] !== original[field]) {
+                        var from = field === 'host' ? hostName(original[field]) : original[field];
+                        var to = field === 'host' ? hostName(current[field]) : current[field];
+                        changes.push(format(
+                            escapeHtml(panel.getAttribute('data-text-change')),
+                            escapeHtml(panel.getAttribute('data-label-' + field)),
+                            display(from),
+                            display(to)
+                        ));
+                    }
+                });
+
+                save.disabled = changes.length === 0;
+                save.setAttribute(
+                    'data-confirm-message',
+                    '<span class="text-break">' + format(
+                        escapeHtml(panel.getAttribute('data-text-confirm')),
+                        escapeHtml(original.type),
+                        '<strong>' + escapeHtml(hostName(original.host)) + '</strong>'
+                    ) + '<br>' + changes.join('<br>') + '</span>'
+                );
+            }
+
+            // Delete buttons use Blesta's .modal-confirm-delete binding, which reads data-confirm-message on click
+            root.querySelectorAll('.dns-record-delete').forEach(function (button) {
+                button.setAttribute(
+                    'data-confirm-message',
+                    '<span class="text-break">' + escapeHtml(button.getAttribute('data-confirm-text')) + '</span>'
+                );
+            });
+
+            // Blesta's confirmation modal reads data-confirm-message when clicked and submits the form
+            if (typeof window.blestaModalConfirm === 'function') {
+                window.blestaModalConfirm(save, {submit: true});
+            }
+
+            root.querySelectorAll('.dns-record-edit').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    original = {
+                        type: this.getAttribute('data-type'),
+                        host: this.getAttribute('data-host'),
+                        value: this.getAttribute('data-value'),
+                        distance: this.getAttribute('data-distance'),
+                        ttl: this.getAttribute('data-ttl')
+                    };
+                    document.getElementById('dns_edit_record_id').value = this.getAttribute('data-record-id');
+                    document.getElementById('dns_edit_record_type').value = original.type;
+                    document.getElementById('dns_edit_type_label').textContent = original.type;
+                    Object.keys(fields).forEach(function (field) {
+                        fields[field].value = original[field];
+                    });
+                    toggle('.dns-edit-distance', original.type === 'MX');
+                    refreshSave();
+                    panel.style.display = '';
+                    panel.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    fields.value.focus();
                 });
             });
+
+            Object.keys(fields).forEach(function (field) {
+                fields[field].addEventListener('input', refreshSave);
+            });
+
+            document.getElementById('dns_edit_cancel').addEventListener('click', function () {
+                panel.style.display = 'none';
+            });
         });
-    });
+    })();
 </script>

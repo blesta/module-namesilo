@@ -20,7 +20,7 @@
                                     <tr>
                                         <td<?php echo $index !== 0
                                             ? ' class="text-muted font-italic"'
-                                            : ''; ?>><?php echo $address->email ?? ''; ?></td>
+                                            : ''; ?>><?php echo $this->Html->safe($address->email ?? ''); ?></td>
                                         <td><?php $this->Form->fieldText(
                                             'emails[' . ($address->email ?? null) . '][]',
                                             $email ?? '',
@@ -47,7 +47,7 @@
                                     </tr>
                                     <?php } ?>
                                 <tr>
-                                    <td class="text-muted font-italic"><?php echo $address->email ?? ''; ?></td>
+                                    <td class="text-muted font-italic"><?php echo $this->Html->safe($address->email ?? ''); ?></td>
                                     <td colspan="2"><?php $this->Form->fieldText(
                                         'emails[' . ($address->email ?? null) . '][]',
                                     ); ?></td>

@@ -1,6 +1,17 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- Edit existing DNS records from the client and admin DNS tabs (dnsUpdateRecord), with a confirmation listing each change
+- Export Zone File on the client and admin DNS tabs (standard BIND/RFC 1035 zone file)
+- Success messages after adding, updating or deleting a DNS record
+- Delete confirmations for DNS records using Blesta's confirmation modals
+### Fixed
+- DNS records, DNSSEC records, email forwarding addresses, host names and transfer status are now HTML-escaped
+- TXT values entered with zone-file quoting ("v=spf1 ...") are unquoted before being sent, since NameSilo stores quotes literally
+- DNS hosts entered as "@", the bare domain or "host.example.com" are normalized to the relative form the API expects
+- The client DNS tab priority (MX) toggle and help text typos
+- MX priority 0 was replaced by NameSilo's default of 10 because rrdistance was only sent when non-empty
 ### Changed
 - Formatted all source code to PSR-2 standards for Blesta
 - Fixed a couple "undefined variable" errors encountered on initial installation

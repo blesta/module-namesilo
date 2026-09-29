@@ -1,5 +1,5 @@
 <?php /** @var View $this **/ ?>
 
 <p><?php $this->_('Namesilo.notice.TransferPending'); ?></p>
-<p><strong>Status:</strong> <?php echo $transferstatus->status ?? null; ?></p>
-<p><strong>Status Message:</strong> <?php echo $transferstatus->message ?? null; ?></p>
+<p><strong>Status:</strong> <?php echo $this->Html->safe($transferstatus->status ?? null); ?></p>
+<p><strong>Status Message:</strong> <?php echo $this->Html->safe($transferstatus->message ?? null); ?></p>

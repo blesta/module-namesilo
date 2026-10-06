@@ -766,7 +766,9 @@ class Namesilo extends RegistrarModule
                     $response = $domains->create($fields);
                     $this->processResponse($api, $response);
 
-                    if ($this->Input->errors()) {
+                    $registered = !$this->Input->errors();
+
+                    if (!$registered) {
                         // if namesilo is running a promotion on registrations we have to work around their system if
                         // we are doing a multi-year registration
                         $error = 'Invalid number of years, or no years provided.';
@@ -780,17 +782,35 @@ class Namesilo extends RegistrarModule
                             $response = $domains->create($fields);
                             $this->processResponse($api, $response);
 
-                            // now extend the remainder of the years
-                            $fields['years'] = $total_years - 1;
-                            $response = $domains->renew($fields);
-                            $this->processResponse($api, $response);
+                            if (!$this->Input->errors()) {
+                                // The domain is now registered. A failure to extend the remaining term
+                                // below must not undo that, or abort the service, since the domain
+                                // itself was registered successfully.
+                                $registered = true;
+
+                                $remaining_years = $total_years - 1;
+                                if ($remaining_years > 0) {
+                                    $fields['years'] = $remaining_years;
+                                    $response = $domains->renew($fields);
+                                    $this->processResponse($api, $response);
+
+                                    if ($this->Input->errors()) {
+                                        // The failure is already recorded in the module log by
+                                        // processResponse(); clear it so the registered domain's
+                                        // service is not aborted because of it.
+                                        $this->Input->setErrors([]);
+                                    }
+                                }
+                            }
                         }
 
-                        if (isset($vars['contact_id'])) {
-                            $domains->deleteContacts(['contact_id' => $vars['contact_id']]);
-                        }
+                        if (!$registered) {
+                            if (isset($vars['contact_id'])) {
+                                $domains->deleteContacts(['contact_id' => $vars['contact_id']]);
+                            }
 
-                        return;
+                            return;
+                        }
                     }
 
                     // Sync domain contacts for the current client

@@ -43,7 +43,7 @@ class NamesiloDomainsTransfer
     public function create(array $vars)
     {
         if (isset($vars['auth'])) {
-            $vars['auth'] = urlencode($vars['auth']);
+            $vars['auth'] = 'base64:' . base64_encode(trim($vars['auth']));
         }
         return $this->api->submit('transferDomain', array_merge($vars, ['auto_renew' => 0]));
     }
@@ -90,6 +90,10 @@ class NamesiloDomainsTransfer
      */
     public function updateEpp(array $vars)
     {
+        if (isset($vars['auth'])) {
+            $vars['auth'] = 'base64:' . base64_encode(trim($vars['auth']));
+        }
+
         return $this->api->submit('transferUpdateChangeEPPCode', $vars);
     }
 

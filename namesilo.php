@@ -681,36 +681,52 @@ class Namesilo extends RegistrarModule
                     $contact_numbers = $this->Contacts->getNumbers($client->contact_id);
                 }
 
-                foreach ($whois_fields as $key => $value) {
-                    $input_fields[$value['rp']] = true;
-                    if (strpos($key, 'phone') !== false) {
-                        $vars[$value['rp']] = $this->formatPhone(
-                            isset($contact_numbers[0]) ? $contact_numbers[0]->number : null,
-                            $client->country
-                        );
-                    } else {
-                        $vars[$value['rp']] =
-                            (isset($value['lp']) && !empty($value['lp'])) ? $client->{$value['lp']} : 'NA';
+                // When registering with the NameSilo account's default contact, don't fill in (or
+                // send) WHOIS contact fields; NameSilo will use the account's default contact profile
+                // when none of the required fields are provided. .ca domains always require their own
+                // special contact, so this setting never applies to them.
+                $use_account_contact = $tld != '.ca'
+                    && ($row->meta->use_account_contact ?? 'false') == 'true';
+
+                if (!$use_account_contact) {
+                    foreach ($whois_fields as $key => $value) {
+                        $input_fields[$value['rp']] = true;
+                        if (strpos($key, 'phone') !== false) {
+                            $vars[$value['rp']] = $this->formatPhone(
+                                isset($contact_numbers[0]) ? $contact_numbers[0]->number : null,
+                                $client->country
+                            );
+                        } else {
+                            $vars[$value['rp']] =
+                                (isset($value['lp']) && !empty($value['lp'])) ? $client->{$value['lp']} : 'NA';
+                        }
                     }
                 }
 
                 $fields = array_intersect_key($vars, $input_fields);
 
-                $default_meta = $this->ModuleClientMeta->get(
-                    $vars['client_id'],
-                    'default_contact_id',
-                    $row->module_id,
-                    $row->id
-                );
+                if (!$use_account_contact) {
+                    $default_meta = $this->ModuleClientMeta->get(
+                        $vars['client_id'],
+                        'default_contact_id',
+                        $row->module_id,
+                        $row->id
+                    );
 
-                if (isset($default_meta->value)) {
-                    $fields['contact_id'] = $default_meta->value;
+                    if (isset($default_meta->value)) {
+                        $fields['contact_id'] = $default_meta->value;
+                    }
                 }
                 if (!empty($row->meta->portfolio)) {
                     $fields['portfolio'] = $row->meta->portfolio;
                 }
                 if (!empty($row->meta->payment_id)) {
                     $fields['payment_id'] = $row->meta->payment_id;
+                }
+
+                // Turn on auto-renew for new registrations/transfers, if configured
+                if (($row->meta->auto_renew_new ?? 'false') == 'true') {
+                    $fields['auto_renew'] = 1;
                 }
 
                 // for .ca domains we need to create a special contact to use. $created_contact_id
@@ -1294,7 +1310,17 @@ class Namesilo extends RegistrarModule
      */
     public function addModuleRow(array &$vars)
     {
-        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module', 'client_contacts'];
+        $meta_fields = [
+            'user',
+            'key',
+            'sandbox',
+            'portfolio',
+            'payment_id',
+            'namesilo_module',
+            'client_contacts',
+            'auto_renew_new',
+            'use_account_contact'
+        ];
         $encrypted_fields = ['key'];
 
         // Set unspecified checkboxes
@@ -1303,6 +1329,12 @@ class Namesilo extends RegistrarModule
         }
         if (empty($vars['client_contacts'])) {
             $vars['client_contacts'] = 'false';
+        }
+        if (empty($vars['auto_renew_new'])) {
+            $vars['auto_renew_new'] = 'false';
+        }
+        if (empty($vars['use_account_contact'])) {
+            $vars['use_account_contact'] = 'false';
         }
 
         $this->Input->setRules($this->getRowRules($vars));
@@ -1339,7 +1371,17 @@ class Namesilo extends RegistrarModule
      */
     public function editModuleRow($module_row, array &$vars)
     {
-        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module', 'client_contacts'];
+        $meta_fields = [
+            'user',
+            'key',
+            'sandbox',
+            'portfolio',
+            'payment_id',
+            'namesilo_module',
+            'client_contacts',
+            'auto_renew_new',
+            'use_account_contact'
+        ];
         $encrypted_fields = ['key'];
 
         // Set unspecified checkboxes
@@ -1348,6 +1390,12 @@ class Namesilo extends RegistrarModule
         }
         if (empty($vars['client_contacts'])) {
             $vars['client_contacts'] = 'false';
+        }
+        if (empty($vars['auto_renew_new'])) {
+            $vars['auto_renew_new'] = 'false';
+        }
+        if (empty($vars['use_account_contact'])) {
+            $vars['use_account_contact'] = 'false';
         }
 
         // Merge package settings on to the module row meta

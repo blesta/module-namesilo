@@ -81,6 +81,32 @@ $this->Form->fieldHidden('namesilo_module', true);
     <p class="form-text"><?php $this->_('Namesilo.row_meta.client_contacts.description'); ?></p>
 </div>
 
+<div class="mb-3">
+    <div class="form-check">
+        <?php $this->Form->fieldCheckbox('auto_renew_new', 'true', ($vars->auto_renew_new ?? null) == 'true', [
+            'id' => 'auto_renew_new',
+            'class' => 'form-check-input',
+        ]); ?>
+        <label for="auto_renew_new" class="form-check-label">
+            <?php $this->_('Namesilo.row_meta.auto_renew_new'); ?>
+        </label>
+    </div>
+    <p class="form-text"><?php $this->_('Namesilo.row_meta.auto_renew_new.description'); ?></p>
+</div>
+
+<div class="mb-3">
+    <div class="form-check">
+        <?php $this->Form->fieldCheckbox('use_account_contact', 'true', ($vars->use_account_contact ?? null) == 'true', [
+            'id' => 'use_account_contact',
+            'class' => 'form-check-input',
+        ]); ?>
+        <label for="use_account_contact" class="form-check-label">
+            <?php $this->_('Namesilo.row_meta.use_account_contact'); ?>
+        </label>
+    </div>
+    <p class="form-text"><?php $this->_('Namesilo.row_meta.use_account_contact.description'); ?></p>
+</div>
+
 <?php $this->Widget->footer(); ?>
 <div class="d-flex justify-content-end">
     <?php $this->Form->fieldSubmit('save', $this->_('Namesilo.edit_row.add_btn', true), [

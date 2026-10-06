@@ -39,6 +39,8 @@ $lang['Namesilo.row_meta.portfolio'] = 'Portfolio';
 $lang['Namesilo.row_meta.payment_id'] = 'Payment ID';
 $lang['Namesilo.row_meta.payment_id.description'] = 'Leave blank to use account funds or enter the ID of a billing profile that is <strong>verified</strong> in your Namesilo account to use it for purchases.  You can get this ID from';
 $lang['Namesilo.row_meta.sandbox'] = 'Sandbox';
+$lang['Namesilo.row_meta.client_contacts'] = 'Clients can manage WHOIS contacts';
+$lang['Namesilo.row_meta.client_contacts.description'] = 'Shows the Whois and Manage Contacts tabs to clients. Turn off if domains use your account\'s contact profile: a client editing that contact changes the registrant of every domain using it.';
 $lang['Namesilo.row_meta.sandbox_true'] = 'Yes';
 $lang['Namesilo.row_meta.sandbox_false'] = 'No';
 
@@ -217,6 +219,7 @@ $lang['Namesilo.!error.dns_value.duplicate_dmarc'] = 'There is already a DMARC r
 $lang['Namesilo.!error.dns_value.duplicate_dkim'] = 'There is already a DKIM key at %1$s: "%2$s". A DKIM selector can have only one key (RFC 6376). Edit the existing record, or use a different selector name.';
 $lang['Namesilo.!error.dns_value.dmarc_host'] = 'A DMARC record only works at the host _dmarc (%1$s). Set the Host to _dmarc.';
 $lang['Namesilo.!error.dns_value.dkim_host'] = 'A DKIM key only works at a host ending in ._domainkey, such as selector._domainkey.%1$s. Use the host name your email provider gave you.';
+$lang['Namesilo.!error.contact_not_allowed'] = 'You can only assign your own contacts to this domain.';
 $lang['Namesilo.!error.epp.empty'] = 'Domain transfers require an EPP code to be entered.';
 $lang['Namesilo.!error.premium_domain'] = '%1$s is a premium domain. Please contact us for more information.'; // %1$s is the premium domain;
 $lang['Namesilo.!error.invalid_term'] = 'Invalid number of years, or no years provided.';

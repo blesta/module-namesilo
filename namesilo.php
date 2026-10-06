@@ -1256,12 +1256,15 @@ class Namesilo extends RegistrarModule
      */
     public function addModuleRow(array &$vars)
     {
-        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module'];
+        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module', 'client_contacts'];
         $encrypted_fields = ['key'];
 
         // Set unspecified checkboxes
         if (empty($vars['sandbox'])) {
             $vars['sandbox'] = 'false';
+        }
+        if (empty($vars['client_contacts'])) {
+            $vars['client_contacts'] = 'false';
         }
 
         $this->Input->setRules($this->getRowRules($vars));
@@ -1298,12 +1301,15 @@ class Namesilo extends RegistrarModule
      */
     public function editModuleRow($module_row, array &$vars)
     {
-        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module'];
+        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module', 'client_contacts'];
         $encrypted_fields = ['key'];
 
         // Set unspecified checkboxes
         if (empty($vars['sandbox'])) {
             $vars['sandbox'] = 'false';
+        }
+        if (empty($vars['client_contacts'])) {
+            $vars['client_contacts'] = 'false';
         }
 
         // Merge package settings on to the module row meta
@@ -1889,6 +1895,11 @@ class Namesilo extends RegistrarModule
                 unset($tabs['tabClientEmailForwarding']);
             }
 
+            // Contact management is off unless enabled on the module row
+            if (!$this->clientContactsEnabled($service)) {
+                unset($tabs['tabClientWhois'], $tabs['tabClientManageContacts']);
+            }
+
             return $tabs;
         }
     }
@@ -1910,6 +1921,20 @@ class Namesilo extends RegistrarModule
         }
 
         return false;
+    }
+
+    /**
+     * Checks if clients may manage WHOIS contacts for a service. On unless turned off on the module row;
+     * turn it off when domains share the reseller's contact profile, since a client edit would change all of them
+     *
+     * @param stdClass $service An object representing the service
+     * @return bool True if the client WHOIS and contact tabs are enabled, false otherwise
+     */
+    private function clientContactsEnabled($service)
+    {
+        $row = $this->getModuleRow($service->module_row_id ?? null);
+
+        return ($row->meta->client_contacts ?? 'true') == 'true';
     }
 
     /**
@@ -1939,6 +1964,10 @@ class Namesilo extends RegistrarModule
      */
     public function tabClientWhois($package, $service, array $get = null, array $post = null, array $files = null)
     {
+        if (!$this->clientContactsEnabled($service)) {
+            return '';
+        }
+
         return $this->manageWhois('tab_client_whois', $package, $service, $get, $post, $files);
     }
 
@@ -1969,6 +1998,10 @@ class Namesilo extends RegistrarModule
      */
     public function tabClientManageContacts($package, $service, array $get = null, array $post = null, array $files = null)
     {
+        if (!$this->clientContactsEnabled($service)) {
+            return '';
+        }
+
         return $this->manageManageContacts('tab_client_manage_contacts', $package, $service, $get, $post, $files);
     }
 
@@ -2303,15 +2336,6 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
-        if (!empty($post)) {
-            $post['domain'] = $fields->domain;
-            $domains->setContacts($post);
-
-            $vars = (object) $post;
-        } else {
-            $vars = (object) $contact_ids;
-        }
-
         $contacts = [];
         $module = $this->getModule();
         $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
@@ -2319,6 +2343,37 @@ class Namesilo extends RegistrarModule
             foreach (json_decode($contact_meta->value, true) ?? [] as $contact_id => $contact_name) {
                 $contacts[$contact_id] = $contact_name . '-' . $contact_id;
             }
+        }
+
+        if (!empty($post)) {
+            $args = ['domain' => $fields->domain];
+            foreach ($sections as $section) {
+                if (isset($post[$section]) && $post[$section] !== '') {
+                    $args[$section] = $post[$section];
+                }
+            }
+
+            // A client may only assign their own contacts, or keep the ones already on the domain
+            $allowed = array_merge(array_map('strval', array_keys($contacts)), array_map('strval', $contact_ids));
+            foreach ($sections as $section) {
+                if ($view == 'tab_client_whois' && isset($args[$section])
+                    && !in_array((string) $args[$section], $allowed, true)
+                ) {
+                    $this->Input->setErrors(
+                        ['contact' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+                    );
+                    break;
+                }
+            }
+
+            if (!$this->Input->errors()) {
+                $response = $domains->setContacts($args);
+                $this->processResponse($this->api, $response);
+            }
+
+            $vars = (object) $post;
+        } else {
+            $vars = (object) $contact_ids;
         }
 
         $this->view->set('vars', $vars);

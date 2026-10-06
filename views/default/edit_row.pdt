@@ -68,6 +68,19 @@ $this->Form->fieldHidden('namesilo_module', true);
     </div>
 </div>
 
+<div class="mb-3">
+    <div class="form-check">
+        <?php $this->Form->fieldCheckbox('client_contacts', 'true', ($vars->client_contacts ?? 'true') == 'true', [
+            'id' => 'client_contacts',
+            'class' => 'form-check-input',
+        ]); ?>
+        <label for="client_contacts" class="form-check-label">
+            <?php $this->_('Namesilo.row_meta.client_contacts'); ?>
+        </label>
+    </div>
+    <p class="form-text"><?php $this->_('Namesilo.row_meta.client_contacts.description'); ?></p>
+</div>
+
 <?php $this->Widget->footer(); ?>
 <div class="d-flex justify-content-end">
     <?php $this->Form->fieldSubmit('save', $this->_('Namesilo.edit_row.add_btn', true), [

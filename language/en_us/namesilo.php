@@ -226,6 +226,7 @@ $lang['Namesilo.!error.epp.empty'] = 'Domain transfers require an EPP code to be
 $lang['Namesilo.!error.premium_domain'] = '%1$s is a premium domain. Please contact us for more information.'; // %1$s is the premium domain;
 $lang['Namesilo.!error.invalid_term'] = 'Invalid number of years, or no years provided.';
 $lang['Namesilo.!error.domain_unavailable'] = 'The domain is not available for registration.';
+$lang['Namesilo.!error.domain_not_transferable'] = 'The domain %1$s cannot be transferred: %2$s'; // %1$s is the domain, %2$s is the reason given by NameSilo
 
 // Notices
 $lang['Namesilo.notice.StatusPending'] = 'This order is pending. The feature you are trying to access will become available once the order has been activated successfully.';

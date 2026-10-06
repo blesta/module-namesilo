@@ -137,6 +137,21 @@ class NamesiloDomains
     }
 
     /**
+     * Checks the availability of a domain name for transfer.
+     *
+     * @param array $vars An array of input params including:
+     *
+     *  - domains A comma-delimited list of domains to check (up to 200)
+     * @return NamesiloResponse
+     *
+     * https://www.namesilo.com/api_reference.php#checkTransferAvailability
+     */
+    public function checkTransfer(array $vars)
+    {
+        return $this->api->submit('checkTransferAvailability', $vars);
+    }
+
+    /**
      * Reactivates an expired domain.
      *
      * @param array $vars An array of input params including:

@@ -3876,6 +3876,68 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Verifies that the provided domain name is available for transfer
+     *
+     * @param string $domain The domain to lookup
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return bool True if the domain is available for transfer, false otherwise
+     */
+    public function checkTransferAvailability($domain, $module_row_id = null)
+    {
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+
+        $domains = new NamesiloDomains($api);
+        $result = $domains->checkTransfer(['domains' => $domain]);
+        $this->processResponse($api, $result);
+
+        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
+            return false;
+        }
+
+        $responseXML = $result->responseXML();
+
+        // Look for this domain among the transferable domains
+        foreach (($responseXML->xpath('//available/domain') ?: []) as $available) {
+            if ((string) $available !== $domain) {
+                continue;
+            }
+
+            $attributes = $available->attributes();
+            if (isset($attributes->premium) && $attributes->premium == '1') {
+                $this->Input->setErrors(
+                    ['availability' => ['premium' => Language::_('Namesilo.!error.premium_domain', true, $domain)]]
+                );
+
+                return false;
+            }
+
+            return true;
+        }
+
+        // The domain was not in the available element, look for a reason why not
+        $reason = '';
+        foreach (($responseXML->xpath('//unavailable/domain') ?: []) as $unavailable) {
+            if ((string) $unavailable === $domain) {
+                $attributes = $unavailable->attributes();
+                $reason = isset($attributes->reason) ? (string) $attributes->reason : '';
+                break;
+            }
+        }
+
+        $this->Input->setErrors(
+            ['domain' => ['transfer_unavailable' => Language::_(
+                'Namesilo.!error.domain_not_transferable',
+                true,
+                $domain,
+                $reason
+            )]]
+        );
+
+        return false;
+    }
+
+    /**
      * Verifies if a domain of the provided TLD can be registered or transfer by the provided term
      *
      * @param string $tld The TLD to verify

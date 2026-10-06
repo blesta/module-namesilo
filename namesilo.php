@@ -795,8 +795,6 @@ class Namesilo extends RegistrarModule
                     }
 
                     // Handle registration
-                    $domains = new NamesiloDomains($api);
-
                     $response = $domains->create($fields);
                     $this->processResponse($api, $response);
 

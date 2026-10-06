@@ -3141,7 +3141,11 @@ class Namesilo extends RegistrarModule
         $ds = $dns->dnsSecListRecords(['domain' => $fields->domain])->response();
 
         // get a consistent format because xml parsing in php is inconsistent
-        $ds->ds_record = isset($ds->ds_record) && !is_array($ds->ds_record) ? [$ds->ds_record] : $ds->ds_record;
+        if (!isset($ds->ds_record)) {
+            $ds->ds_record = [];
+        } elseif (!is_array($ds->ds_record)) {
+            $ds->ds_record = [$ds->ds_record];
+        }
 
         $vars->selects = Configure::get('Namesilo.dnssec');
         $vars->records = $ds->ds_record;

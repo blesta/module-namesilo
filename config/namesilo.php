@@ -90,6 +90,8 @@ Configure::set('Namesilo.dnssec', [
             '12' => 'ECC-GOST (12)',
             '13' => 'ECDSA Curve P-256 with SHA-256 (13)',
             '14' => 'ECDSA Curve P-384 with SHA-384 (14)',
+            '15' => 'Ed25519 (15)',
+            '16' => 'Ed448 (16)',
             '252' => 'Indirect (252)',
             '253' => 'Private DNS (253)',
             '254' => 'Private OID (254)'

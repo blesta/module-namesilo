@@ -3055,6 +3055,15 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
+        // The account's default contact profile is shared by every domain using it, never let a client change it
+        if ($this->isDefaultProfile($response->response()->contact ?? null)) {
+            $this->Input->setErrors(
+                ['contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+            );
+
+            return $this->handleContactList($view, $package, $service, $get, []);
+        }
+
         if (!empty($post)) {
             $response = $domains->updateContacts($post);
             $this->processResponse($this->api, $response);
@@ -3120,6 +3129,15 @@ class Namesilo extends RegistrarModule
         $response = $domains->getContacts(['contact_id' => $contact_id]);
         if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
             return false;
+        }
+
+        // The account's default contact profile is shared by every domain using it, never let a client delete it
+        if ($this->isDefaultProfile($response->response()->contact ?? null)) {
+            $this->Input->setErrors(
+                ['contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+            );
+
+            return;
         }
 
         $response = $domains->deleteContacts(['contact_id' => $contact_id]);

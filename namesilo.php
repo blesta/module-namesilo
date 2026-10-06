@@ -4091,8 +4091,11 @@ class Namesilo extends RegistrarModule
                         continue;
                     }
 
+                    // NameSilo's registration price is only for the first year (it is often a
+                    // promotional rate); any additional years of a multi-year registration are
+                    // charged at the renewal price
                     $tld_yearly_prices[$tld][$currency][$years] = [
-                        'register' => $prices->registration * $years,
+                        'register' => $prices->registration + $prices->renew * ($years - 1),
                         'transfer' => $prices->transfer * $years,
                         'renew' => $prices->renew * $years
                     ];

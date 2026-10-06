@@ -11,6 +11,7 @@
 - Module row setting to turn on auto-renew for new registrations and transfers (off by default)
 - Module row setting to register new domains with the NameSilo account's default contact (off by default; not used for .ca, or for clients who have a default contact set)
 - Ed25519 (15) and Ed448 (16) DNSSEC algorithms
+- The client Whois tab shows the domain's contact details as editable fields; changes update the client's own contact or create a new contact for the domain, never a contact shared with other domains
 ### Fixed
 - DNS records, DNSSEC records, email forwarding addresses, host names and transfer status are now HTML-escaped
 - TXT values entered with zone-file quoting ("v=spf1 ...") are unquoted before being sent, since NameSilo stores quotes literally
@@ -31,6 +32,7 @@
 - Cached TLD prices could not be read back, so pricing came back empty while the cache was warm
 - The client Whois tab only accepts the client's own contacts or the domain's current ones
 - The Manage Contacts default contact only accepts one of the client's own contacts
+- Clients can no longer edit or delete the NameSilo account's default contact profile from Manage Contacts
 ### Changed
 - Formatted all source code to PSR-2 standards for Blesta
 - Fixed a couple "undefined variable" errors encountered on initial installation

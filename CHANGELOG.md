@@ -6,12 +6,30 @@
 - Export Zone File on the client and admin DNS tabs (standard BIND/RFC 1035 zone file)
 - Success messages after adding, updating or deleting a DNS record
 - Delete confirmations for DNS records using Blesta's confirmation modals
+- DNS input checks before calling NameSilo: record type required, empty or non-ASCII values, and a second SPF/DMARC/DKIM record or a DMARC/DKIM record on the wrong host
+- Module row setting "Clients can manage WHOIS contacts" (on unless turned off) controlling the client Whois and Manage Contacts tabs
+- Module row setting to turn on auto-renew for new registrations and transfers (off by default)
+- Module row setting to register new domains with the NameSilo account's default contact (off by default; not used for .ca)
+- Ed25519 (15) and Ed448 (16) DNSSEC algorithms
 ### Fixed
 - DNS records, DNSSEC records, email forwarding addresses, host names and transfer status are now HTML-escaped
 - TXT values entered with zone-file quoting ("v=spf1 ...") are unquoted before being sent, since NameSilo stores quotes literally
 - DNS hosts entered as "@", the bare domain or "host.example.com" are normalized to the relative form the API expects
 - The client DNS tab priority (MX) toggle and help text typos
 - MX priority 0 was replaced by NameSilo's default of 10 because rrdistance was only sent when non-empty
+- Domain transfers are checked with NameSilo's checkTransferAvailability; a domain that can't be transferred no longer activates a service with nothing ordered
+- EPP codes with characters such as + or & were mangled on transfer and when changing the EPP code
+- Multi-year registrations during a NameSilo promotion created the service without its domain; a failed extension of the remaining years is now logged as a module error
+- The .ca contact created for an order was never deleted when the order failed
+- Multi-year registration prices used the first-year (promotional) price for every year instead of the renewal price for the additional years
+- Domain forwarding dropped the path, query string and fragment of the forwarding URL, and cloaked forwards were not pre-selected
+- Email forwarding sent the full address instead of the local part, and more than 5 forwarding addresses were silently dropped
+- The Sync date admin action stored midnight expirations as noon
+- A failed contact lookup during contact sync was not detected
+- Host IPs were numbered by form position (an empty first IP broke the update), and a fully-qualified new host name was not stripped of the domain
+- The DNSSEC tabs read key_tag/digest_type instead of NameSilo's keyTag/digestType (client tab)
+- Cached TLD prices could not be read back, so pricing came back empty while the cache was warm
+- The client Whois tab only accepts the client's own contacts or the domain's current ones
 ### Changed
 - Formatted all source code to PSR-2 standards for Blesta
 - Fixed a couple "undefined variable" errors encountered on initial installation

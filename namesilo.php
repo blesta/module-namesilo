@@ -847,10 +847,25 @@ class Namesilo extends RegistrarModule
                                     $response = $domains->renew($fields);
                                     $this->processResponse($api, $response);
 
-                                    if ($this->Input->errors()) {
-                                        // The failure is already recorded in the module log by
-                                        // processResponse(); clear it so the registered domain's
-                                        // service is not aborted because of it.
+                                    if (($renew_errors = $this->Input->errors())) {
+                                        // The domain is registered for 1 year only. Record that as an
+                                        // explicit error in the module log, then clear the error so the
+                                        // registered domain's service is not aborted because of it.
+                                        // For domains in the Domains plugin package group, the plugin
+                                        // re-reads the registrar expiration date when the service is
+                                        // activated and moves its renew date to match.
+                                        $this->log(
+                                            'registerDomain multi-year workaround',
+                                            serialize([
+                                                'domain' => $vars['domain'],
+                                                'years_requested' => $total_years,
+                                                'years_registered' => 1,
+                                                'years_not_extended' => $remaining_years,
+                                                'errors' => $renew_errors
+                                            ]),
+                                            'output',
+                                            false
+                                        );
                                         $this->Input->setErrors([]);
                                     }
                                 }

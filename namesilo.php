@@ -3440,15 +3440,19 @@ class Namesilo extends RegistrarModule
         $fields = $this->serviceFieldsToObject($service->fields);
         $this->view->set('domain', $fields->domain);
 
-        // Download the zone as a standard BIND zone file
+        // Download the zone as a standard BIND zone file; if the records can't be fetched, show the
+        // tab with the error rather than download what would look like an empty zone
         if (($get['export'] ?? null) === 'zone') {
-            Loader::loadComponents($this, ['Download']);
-            $this->Download->setContentType('text/plain');
-            $this->Download->downloadData(
-                $fields->domain . '.txt',
-                $this->buildZoneFile($fields->domain, $this->getDnsRecords($dns, $fields->domain))
-            );
-            exit;
+            $records = $this->getDnsRecords($dns, $fields->domain, $api);
+            if (!$this->errors()) {
+                Loader::loadComponents($this, ['Download']);
+                $this->Download->setContentType('text/plain');
+                $this->Download->downloadData(
+                    $fields->domain . '.txt',
+                    $this->buildZoneFile($fields->domain, $records)
+                );
+                exit;
+            }
         }
 
         if (!empty($post)) {
@@ -3653,11 +3657,17 @@ class Namesilo extends RegistrarModule
      *
      * @param NamesiloDomainsDns $dns The NameSilo DNS API command object
      * @param string $domain The domain to fetch records for
+     * @param NamesiloApi|null $api The API object, to log the request and set an error when it fails
+     *  (otherwise a failed request is treated as no records)
      * @return array A list of records, each including an "edit_host" key holding the host relative to the domain
      */
-    private function getDnsRecords(NamesiloDomainsDns $dns, $domain)
+    private function getDnsRecords(NamesiloDomainsDns $dns, $domain, NamesiloApi $api = null)
     {
-        $records = $dns->dnsListRecords(['domain' => $domain])->response(true);
+        $response = $dns->dnsListRecords(['domain' => $domain]);
+        if ($api) {
+            $this->processResponse($api, $response);
+        }
+        $records = $response->response(true);
 
         // Get a consistent format because XML parsing in PHP is inconsistent
         if (isset($records['resource_record']) && !is_array($records['resource_record'])) {

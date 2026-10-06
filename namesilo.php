@@ -3020,10 +3020,19 @@ class Namesilo extends RegistrarModule
 
         if (!empty($post)) {
             foreach ($post['hosts'] ?? [] as $host => $ips) {
+                // Renumber the non-empty IPs consecutively from ip1 (the API requires ip1 to
+                // be set, and treats the ip# keys positionally, not by form field position).
+                // The API allows up to 13 IPs (ip1-ip13); ignore any beyond that.
                 $ips_arr = [];
-                foreach ($ips as $key => $ip) {
+                $ip_index = 1;
+                foreach ($ips as $ip) {
                     if ($ip) {
-                        $ips_arr['ip' . ($key + 1)] = $ip;
+                        if ($ip_index > 13) {
+                            break;
+                        }
+
+                        $ips_arr['ip' . $ip_index] = $ip;
+                        $ip_index++;
                     }
                 }
 
@@ -3042,8 +3051,16 @@ class Namesilo extends RegistrarModule
             }
 
             if (!empty($post['new_host']) && !empty($post['new_host_ip'])) {
+                // The API wants the host label only, without the domain name; strip a
+                // trailing ".<this domain>" if the user typed the fully-qualified name
+                $new_host = $post['new_host'];
+                $domain_suffix = '.' . $fields->domain;
+                if (strcasecmp(substr($new_host, -strlen($domain_suffix)), $domain_suffix) === 0) {
+                    $new_host = substr($new_host, 0, -strlen($domain_suffix));
+                }
+
                 $response = $ns->create(
-                    ['domain' => $fields->domain, 'new_host' => $post['new_host'], 'ip1' => $post['new_host_ip']]
+                    ['domain' => $fields->domain, 'new_host' => $new_host, 'ip1' => $post['new_host_ip']]
                 );
                 $this->processResponse($api, $response);
             }

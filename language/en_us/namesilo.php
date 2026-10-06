@@ -44,7 +44,7 @@ $lang['Namesilo.row_meta.client_contacts.description'] = 'Shows the Whois and Ma
 $lang['Namesilo.row_meta.auto_renew_new'] = 'Turn on auto-renew for new registrations and transfers';
 $lang['Namesilo.row_meta.auto_renew_new.description'] = 'When enabled, newly registered and transferred-in domains are set to auto-renew at NameSilo. Leave off to keep the current behavior of registering and transferring domains without auto-renew.';
 $lang['Namesilo.row_meta.use_account_contact'] = 'Register new domains with the NameSilo account\'s default contact';
-$lang['Namesilo.row_meta.use_account_contact.description'] = 'When enabled, WHOIS contact information is not sent for new registrations, so NameSilo uses your account\'s default contact profile instead of creating a new contact from the client\'s Blesta profile. That shared contact is not added to the client\'s contact list. This does not apply to .ca domains, which always use their own special contact.';
+$lang['Namesilo.row_meta.use_account_contact.description'] = 'When enabled, WHOIS contact information is not sent for new registrations, so NameSilo uses your account\'s default contact profile instead of creating a new contact from the client\'s Blesta profile. That shared contact is not added to the client\'s contact list. Clients with a default contact set in Manage Contacts are still registered with that contact. .us domains use the .us nexus details on your default contact profile. This does not apply to .ca domains, which always use their own special contact.';
 $lang['Namesilo.row_meta.sandbox_true'] = 'Yes';
 $lang['Namesilo.row_meta.sandbox_false'] = 'No';
 

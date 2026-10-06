@@ -718,17 +718,18 @@ class Namesilo extends RegistrarModule
 
                 $fields = array_intersect_key($vars, $input_fields);
 
-                if (!$use_account_contact) {
-                    $default_meta = $this->ModuleClientMeta->get(
-                        $vars['client_id'],
-                        'default_contact_id',
-                        $row->module_id,
-                        $row->id
-                    );
+                // A default contact chosen for the client is always used, even when registering with the
+                // account's default contact; only clients without one get the account's contact
+                $default_meta = $this->ModuleClientMeta->get(
+                    $vars['client_id'],
+                    'default_contact_id',
+                    $row->module_id,
+                    $row->id
+                );
 
-                    if (isset($default_meta->value)) {
-                        $fields['contact_id'] = $default_meta->value;
-                    }
+                if (isset($default_meta->value) && $default_meta->value !== '') {
+                    $fields['contact_id'] = $default_meta->value;
+                    $use_account_contact = false;
                 }
                 if (!empty($row->meta->portfolio)) {
                     $fields['portfolio'] = $row->meta->portfolio;

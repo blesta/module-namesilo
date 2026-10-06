@@ -329,6 +329,12 @@ class Namesilo extends RegistrarModule
         // Get the contact info for each domain
         $domains_api = $this->loadApiCommand('Domains', $module_row->id, true);
         $client_contacts = [];
+
+        // Rows registering domains with the account's default contact must not hand that shared contact
+        // to clients, or they could edit the registrant of every domain using it
+        $row = isset($module_row->meta) ? $module_row : $this->getModuleRow($module_row->id);
+        $skip_account_contact = ($row->meta->use_account_contact ?? 'false') == 'true';
+        $account_contact_ids = [];
         foreach ($queued_client_domains as $client_id => $queued_domains) {
             foreach ($queued_domains as $queued_domain) {
                 // Fetch domain info from Namesilo
@@ -348,7 +354,9 @@ class Namesilo extends RegistrarModule
 
                 // Get the name for each contact from Namesilo
                 foreach ($contact_ids as $contact_id) {
-                    if (array_key_exists($contact_id, $client_contacts[$client_id])) {
+                    if (array_key_exists($contact_id, $client_contacts[$client_id])
+                        || isset($account_contact_ids[$contact_id])
+                    ) {
                         continue;
                     }
 
@@ -359,6 +367,11 @@ class Namesilo extends RegistrarModule
                     }
 
                     $contact_response = $contactsInfo->response();
+                    if ($skip_account_contact && ($contact_response->contact->default_profile ?? '0') == '1') {
+                        $account_contact_ids[$contact_id] = true;
+                        continue;
+                    }
+
                     $client_contacts[$client_id][$contact_id] = $contact_response->contact->first_name
                         . ' ' . $contact_response->contact->last_name;
                 }
@@ -881,8 +894,17 @@ class Namesilo extends RegistrarModule
                         }
                     }
 
-                    // Sync domain contacts for the current client
-                    $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
+                    // Sync domain contacts for the current client. Skip it when the domain was registered
+                    // with the account's default contact: that contact is shared by every domain using it,
+                    // so it must not be listed (and editable) as one of this client's contacts.
+                    if (!$use_account_contact) {
+                        $this->synchronizeContactsForModuleRow(
+                            $row,
+                            null,
+                            $client->id,
+                            [$client->id => [$vars['domain']]]
+                        );
+                    }
                 }
             }
         }
@@ -2465,6 +2487,14 @@ class Namesilo extends RegistrarModule
         if ($contact_meta) {
             foreach (json_decode($contact_meta->value, true) ?? [] as $contact_id => $contact_name) {
                 $contacts[$contact_id] = $contact_name . '-' . $contact_id;
+            }
+        }
+
+        // List the domain's current contacts too (e.g. a shared account contact that isn't one of the
+        // client's), so the form shows what is actually set and resubmitting it keeps them
+        foreach ($contact_ids as $contact_id) {
+            if (!array_key_exists($contact_id, $contacts)) {
+                $contacts[$contact_id] = $contact_id;
             }
         }
 

@@ -2282,7 +2282,10 @@ class Namesilo extends RegistrarModule
                 if (!$this->Input->errors()) {
                     $domain_info = $domain_info->response();
                     $expires = $domain_info->expires;
-                    $edit_vars['date_renews'] = date('Y-m-d h:i:s', strtotime($expires));
+                    // Store as UTC (Blesta stores date_renews as a UTC wall-clock value; the
+                    // system timezone here is UTC). Use 24-hour "H" so a midnight expiry is
+                    // not saved as 12:00 (lowercase "h" is 12-hour without an AM/PM marker).
+                    $edit_vars['date_renews'] = date('Y-m-d H:i:s', strtotime($expires));
                     $this->Services->edit($service->id, $edit_vars, $bypass_module = true);
                 }
             }

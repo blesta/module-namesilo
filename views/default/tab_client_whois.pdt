@@ -1,52 +1,63 @@
+    <?php $this->Form->create(null, ['id' => 'client-whois']); ?>
 
-<?php $this->Form->create(); ?>
+    <div class="row panel-fix">
+        <div class="col-md-12">
+            <h4><?php $this->_('Namesilo.tab_whois.title'); ?></h4>
+            <p class="mb-2"><?php $this->_('Namesilo.tab_client_whois.description'); ?></p>
 
-    <?php
-    $i = 0;
-    foreach ($sections as $key) { ?>
-        <div class="title_row">
-            <h4><?php $this->_('Namesilo.tab_whois.section_' . $key); ?></h4>
+            <?php foreach ($sections ?? [] as $section) { ?>
+                <h5 class="mt-4"><?php $this->_('Namesilo.tab_whois.section_' . $section); ?></h5>
+
+                <?php if ($section != 'registrant') { ?>
+                    <div class="form-check mb-2">
+                        <?php
+                        $this->Form->fieldCheckbox(
+                            'same_as_registrant[' . $section . ']',
+                            '1',
+                            !empty($same[$section]),
+                            [
+                                'id' => 'whois_same_' . $section,
+                                'class' => 'form-check-input whois-same-as-registrant',
+                                'data-section' => $section
+                            ]
+                        );
+                        $this->Form->label(
+                            $this->_('Namesilo.tab_client_whois.field_same_as_registrant', true),
+                            'whois_same_' . $section,
+                            ['class' => 'form-check-label']
+                        );
+                        ?>
+                    </div>
+                <?php } ?>
+
+                <div class="row whois-section" id="whois_section_<?php echo $this->Html->safe($section); ?>"<?php echo !empty($same[$section]) ? ' style="display: none;"' : ''; ?>>
+                    <?php foreach ($section_fields[$section] ?? [] as $field) { ?>
+                        <div class="form-group col-md-6">
+                            <?php
+                            // Draw the label and its text field
+                            call_user_func_array([$this->Form, $field->type], $field->params);
+                            foreach ($field->fields as $input) {
+                                $input->params['attributes']['class'] = 'form-control';
+                                call_user_func_array([$this->Form, $input->type], $input->params);
+                            }
+                            ?>
+                        </div>
+                    <?php } ?>
+                </div>
+            <?php } ?>
         </div>
-        <div class="form-group">
-        <?php $this->Form->fieldSelect($key, $contact_ids, $vars->{$key} ?? null, ['class' => 'form-control']); ?>
-        </div>
-        <?php $i++;}
-    ?>
+    </div>
     <button class="btn btn-light float-right" type="submit">
         <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_whois.field_submit'); ?>
     </button>
+
     <?php $this->Form->end(); ?>
 
-    <script>
+    <script type="text/javascript">
         $(document).ready(function () {
-            $('.match-registrant').click(copyRegistrantInfo);
+            // Hide a section's fields while it uses the registrant's contact
+            $('#client-whois .whois-same-as-registrant').change(function () {
+                $('#whois_section_' + $(this).data('section')).toggle(!$(this).is(':checked'));
+            });
         });
-        function copyInfo(that) {
-            const line_name = $(that).attr('name').match(/\[(.*)\]/)[1];
-            const main_val = $("input[name='registrant[" + line_name + "]']").val();
-
-            $(that).val(main_val);
-        }
-
-        function copyRegistrantInfo(e) {
-            e.preventDefault();
-            const value = $(this).attr('name');
-            switch(value) {
-                case 'admin':
-                    $( "input[name^='administrative']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-                case 'tech':
-                    $( "input[name^='technical']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-                case 'billing':
-                    $( "input[name^='billing']:not([type='submit'])" ).each(function() {
-                        copyInfo(this);
-                    });
-                    break;
-            }
-        }
     </script>

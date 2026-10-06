@@ -2075,8 +2075,7 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Checks if clients may manage WHOIS contacts for a service. On unless turned off on the module row;
-     * turn it off when domains share the reseller's contact profile, since a client edit would change all of them
+     * Checks if clients may manage WHOIS contacts for a service. On unless turned off on the module row
      *
      * @param stdClass $service An object representing the service
      * @return bool True if the client WHOIS and contact tabs are enabled, false otherwise
@@ -2119,7 +2118,7 @@ class Namesilo extends RegistrarModule
             return '';
         }
 
-        return $this->manageWhois('tab_client_whois', $package, $service, $get, $post, $files);
+        return $this->manageClientWhois($package, $service, $post);
     }
 
     /**
@@ -2453,7 +2452,7 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Handle updating whois information
+     * Handle assigning contacts to the domain's whois roles (admin Whois tab)
      *
      * @param string $view The view to use
      * @param stdClass $package A stdClass object representing the current package
@@ -2515,23 +2514,8 @@ class Namesilo extends RegistrarModule
                 }
             }
 
-            // A client may only assign their own contacts, or keep the ones already on the domain
-            $allowed = array_merge(array_map('strval', array_keys($contacts)), array_map('strval', $contact_ids));
-            foreach ($sections as $section) {
-                if ($view == 'tab_client_whois' && isset($args[$section])
-                    && !in_array((string) $args[$section], $allowed, true)
-                ) {
-                    $this->Input->setErrors(
-                        ['contact' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
-                    );
-                    break;
-                }
-            }
-
-            if (!$this->Input->errors()) {
-                $response = $domains->setContacts($args);
-                $this->processResponse($this->api, $response);
-            }
+            $response = $domains->setContacts($args);
+            $this->processResponse($this->api, $response);
 
             $vars = (object) $post;
         } else {
@@ -2562,7 +2546,440 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
-        return $domainInfo->response(true)['contact_ids'];
+        return $domainInfo->response(true)['contact_ids'] ?? false;
+    }
+
+    /**
+     * Handle the client Whois tab, which shows the domain's contact details as editable fields
+     *
+     * NameSilo contacts are profiles that can be assigned to any number of domains, so an edit must not
+     * change a contact that other domains or clients may share; see saveClientWhois()
+     *
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $post Any POST parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function manageClientWhois($package, $service, array $post = null)
+    {
+        // if the domain is pending transfer display a notice of such
+        $checkDomainStatus = $this->checkDomainStatus($service, $package);
+        if (isset($checkDomainStatus)) {
+            return $checkDomainStatus;
+        }
+
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+
+        $this->view = new View('tab_client_whois', 'default');
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html']);
+        $sections = ['registrant', 'administrative', 'technical', 'billing'];
+        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $fields = $this->serviceFieldsToObject($service->fields);
+
+        // Get the current contact IDs, and each of those contacts once
+        if (!($contact_ids = $this->getContactsByDomain($domains, $fields->domain))
+            || ($contacts = $this->getContactProfiles($domains, $contact_ids)) === false
+        ) {
+            return false;
+        }
+
+        $details = [];
+        $same = [];
+        if (!empty($post)) {
+            foreach ($sections as $section) {
+                $same[$section] = $section != 'registrant' && !empty($post['same_as_registrant'][$section]);
+                $details[$section] = $this->contactDetailsFromPost($post[$section] ?? [], $whois_fields);
+            }
+
+            if ($this->validateContactDetails($details, $same, $whois_fields)
+                && $this->saveClientWhois($domains, $service, $fields->domain, $contact_ids, $contacts, $details, $same)
+            ) {
+                $this->setMessage('success', Language::_('Namesilo.!success.whois_updated', true));
+            }
+        } else {
+            $registrant_id = (string) ($contact_ids['registrant'] ?? '');
+            foreach ($sections as $section) {
+                $contact_id = (string) ($contact_ids[$section] ?? '');
+                $same[$section] = $section != 'registrant' && $contact_id === $registrant_id;
+                $details[$section] = $this->contactDetails($contacts[$contact_id] ?? null, $whois_fields);
+            }
+        }
+
+        // Build each section's fields, named e.g. registrant[fn]
+        $section_fields = [];
+        foreach ($sections as $section) {
+            $input_fields = [];
+            $vars = new stdClass();
+            foreach ($whois_fields as $field) {
+                $name = $section . '[' . $field['rp'] . ']';
+                $input_fields[$name] = [
+                    'label' => $field['label'],
+                    'type' => $field['type'],
+                    'attributes' => ['id' => 'whois_' . $section . '_' . $field['rp']]
+                ];
+                $vars->{$name} = $details[$section][$field['rp']];
+            }
+
+            $section_fields[$section] = $this->arrayToModuleFields($input_fields, null, $vars)->getFields();
+        }
+
+        $this->view->set('sections', $sections);
+        $this->view->set('section_fields', $section_fields);
+        $this->view->set('same', $same);
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        return $this->view->fetch();
+    }
+
+    /**
+     * Saves the client's edits to the domain's contact details. For each role, the current contact is kept
+     * if its details are unchanged, updated in place if it's one of the client's own contacts (and not the
+     * NameSilo account's default profile), and otherwise replaced by a new contact holding the submitted
+     * details, so a contact shared with other domains or clients is never changed. Sets Input errors and
+     * stops at the first failed request.
+     *
+     * @param NamesiloDomains $domains The API command object to use for the requests
+     * @param stdClass $service A stdClass object representing the current service
+     * @param string $domain The domain being updated
+     * @param array $contact_ids The domain's current contact IDs, keyed by role
+     * @param array $contacts The domain's current contacts from contactList, keyed by contact ID (null if unknown)
+     * @param array $details The validated submitted details for each role, from contactDetailsFromPost()
+     * @param array $same Whether each role is to use the registrant's contact, keyed by role
+     * @return bool True if the contact details were saved, false otherwise
+     */
+    private function saveClientWhois(
+        NamesiloDomains $domains,
+        $service,
+        $domain,
+        array $contact_ids,
+        array $contacts,
+        array $details,
+        array $same
+    ) {
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        $module = $this->getModule();
+        $client_contacts = $this->getClientContacts($service, $module->id);
+        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $registrant = $contacts[(string) ($contact_ids['registrant'] ?? '')] ?? null;
+
+        $results = [];
+        // The details each contact will have after this save, keyed by contact ID, for the contacts kept or
+        // updated; a contact a role keeps must not then be changed for another role
+        $resulting_details = [];
+        $updated = [];
+        // A contact already holding the given details (serialized), so roles with identical details share one
+        $contact_by_details = [];
+        foreach ($details as $section => $section_details) {
+            if (!empty($same[$section])) {
+                $results[$section] = $results['registrant'];
+                continue;
+            }
+
+            $contact_id = (string) ($contact_ids[$section] ?? '');
+            $contact = $contacts[$contact_id] ?? null;
+            $current_details = $resulting_details[$contact_id] ?? $this->contactDetails($contact, $whois_fields);
+            $details_key = serialize($section_details);
+
+            if ($contact && $section_details === $current_details) {
+                // Unchanged, keep this contact
+                $results[$section] = $contact_id;
+                $resulting_details[$contact_id] = $current_details;
+                $contact_by_details[$details_key] = $contact_id;
+                continue;
+            }
+
+            if (isset($contact_by_details[$details_key])) {
+                $results[$section] = $contact_by_details[$details_key];
+                continue;
+            }
+
+            if ($contact
+                && array_key_exists($contact_id, $client_contacts)
+                && !$this->isDefaultProfile($contact)
+                && !isset($resulting_details[$contact_id])
+            ) {
+                // The client's own contact: update it in place, as editing it in Manage Contacts does. Its
+                // registry fields (e.g. .us nexus, CIRA) are passed back so they are kept.
+                $response = $domains->updateContacts(
+                    array_merge(
+                        $this->contactRegistryFields($contact),
+                        $section_details,
+                        ['contact_id' => $contact_id]
+                    )
+                );
+                $this->processResponse($this->api, $response);
+                if ($this->Input->errors()) {
+                    return false;
+                }
+
+                $updated[$contact_id] = true;
+                $client_contacts[$contact_id] = $section_details['fn'] . ' ' . $section_details['ln'];
+                $this->setClientContacts($service, $module->id, $client_contacts);
+            } else {
+                // A shared, account or unknown contact: create a new contact for this domain instead,
+                // carrying over the registry fields (e.g. .us nexus, CIRA) of the contact it replaces
+                $response = $domains->addContacts(
+                    array_merge(
+                        $this->contactRegistryFields($registrant),
+                        $this->contactRegistryFields($contact),
+                        $section_details
+                    )
+                );
+                $this->processResponse($this->api, $response);
+                $contact_id = (string) ($response->response()->contact_id ?? '');
+                if ($this->Input->errors()) {
+                    return false;
+                } elseif ($contact_id === '') {
+                    $this->Input->setErrors($this->getCommonError('invalid'));
+
+                    return false;
+                }
+
+                // Add it to the client's contacts now, so it is listed even if a later request fails
+                $updated[$contact_id] = true;
+                $client_contacts[$contact_id] = $section_details['fn'] . ' ' . $section_details['ln'];
+                $this->setClientContacts($service, $module->id, $client_contacts);
+            }
+
+            $results[$section] = $contact_id;
+            $resulting_details[$contact_id] = $section_details;
+            $contact_by_details[$details_key] = $contact_id;
+        }
+
+        // Assign the resulting contacts to the domain if any role changed
+        $changed = false;
+        foreach ($results as $section => $contact_id) {
+            $changed = $changed || $contact_id !== (string) ($contact_ids[$section] ?? '');
+        }
+
+        if ($changed) {
+            $response = $domains->setContacts(array_merge(['domain' => $domain], $results));
+            $this->processResponse($this->api, $response);
+            if ($this->Input->errors()) {
+                return false;
+            }
+        }
+
+        // Register the client's future domains with the registrant details they entered here, unless they
+        // have already chosen a default contact
+        if (isset($updated[$results['registrant']])) {
+            $default_meta = $this->ModuleClientMeta->get(
+                $service->client_id,
+                'default_contact_id',
+                $module->id,
+                $service->module_row_id
+            );
+
+            if (!isset($default_meta->value) || $default_meta->value === '') {
+                $this->ModuleClientMeta->set(
+                    $service->client_id,
+                    $module->id,
+                    $service->module_row_id,
+                    [['key' => 'default_contact_id', 'value' => $results['registrant']]]
+                );
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Fetches the given contacts from NameSilo, each distinct contact ID once
+     *
+     * @param NamesiloDomains $domains The API command object to use for the requests
+     * @param array $contact_ids A list of contact IDs
+     * @return array|false The contacts from contactList keyed by contact ID, null for a contact NameSilo
+     *  did not return, or false on error
+     */
+    private function getContactProfiles(NamesiloDomains $domains, array $contact_ids)
+    {
+        $contacts = [];
+        foreach ($contact_ids as $contact_id) {
+            $contact_id = (string) $contact_id;
+            if ($contact_id === '' || array_key_exists($contact_id, $contacts)) {
+                continue;
+            }
+
+            $response = $domains->getContacts(['contact_id' => $contact_id]);
+            $this->processResponse($this->api, $response);
+            if ($this->Input->errors()) {
+                return false;
+            }
+
+            // A single contact is returned as an object, several as a list
+            $contacts[$contact_id] = null;
+            $listed = $response->response()->contact ?? [];
+            foreach (is_array($listed) ? $listed : [$listed] as $contact) {
+                if (is_object($contact) && is_scalar($contact->contact_id ?? null)
+                    && (string) $contact->contact_id === $contact_id
+                ) {
+                    $contacts[$contact_id] = $contact;
+                    break;
+                }
+            }
+        }
+
+        return $contacts;
+    }
+
+    /**
+     * Checks whether a contact is the NameSilo account's default contact profile
+     *
+     * @param stdClass $contact The contact from contactList
+     * @return bool True if the contact is the account's default profile, false otherwise
+     */
+    private function isDefaultProfile($contact)
+    {
+        $default_profile = $contact->default_profile ?? null;
+
+        return is_scalar($default_profile) && (string) $default_profile === '1';
+    }
+
+    /**
+     * Gets a contact's whois details as request fields (e.g. fn, ln), with an empty string for any not set
+     *
+     * @param stdClass $contact The contact from contactList, or null if unknown
+     * @param array $whois_fields The Namesilo.whois_fields config
+     * @return array The contact's details, keyed by request field
+     */
+    private function contactDetails($contact, array $whois_fields)
+    {
+        $vars = $contact ? (array) $this->formatContact($contact, $whois_fields) : [];
+
+        $details = [];
+        foreach ($whois_fields as $field) {
+            $details[$field['rp']] = trim($vars[$field['rp']] ?? '');
+        }
+
+        return $details;
+    }
+
+    /**
+     * Gets the submitted whois details for one role as request fields (e.g. fn, ln)
+     *
+     * @param mixed $input The POST data for the role
+     * @param array $whois_fields The Namesilo.whois_fields config
+     * @return array The submitted details, keyed by request field
+     */
+    private function contactDetailsFromPost($input, array $whois_fields)
+    {
+        $input = is_array($input) ? $input : [];
+
+        $details = [];
+        foreach ($whois_fields as $field) {
+            $value = $input[$field['rp']] ?? '';
+            $details[$field['rp']] = is_scalar($value) ? trim((string) $value) : '';
+        }
+
+        return $details;
+    }
+
+    /**
+     * Gets a contact's registry-specific fields (.us nexus, CIRA, .eu citizenship) and fax as request fields,
+     * so they can be kept on a contact created or updated from the whois details alone
+     *
+     * @param stdClass $contact The contact from contactList, or null if unknown
+     * @return array The contact's non-empty registry fields, keyed by request field
+     */
+    private function contactRegistryFields($contact)
+    {
+        $registry_fields = [
+            'fax' => 'fx',
+            'usnc' => 'usnc',
+            'usap' => 'usap',
+            'calf' => 'calf',
+            'caln' => 'caln',
+            'caag' => 'caag',
+            'cawd' => 'cawd',
+            'eucs' => 'eucs'
+        ];
+
+        $fields = [];
+        foreach ($registry_fields as $contact_field => $request_field) {
+            $value = $contact->{$contact_field} ?? null;
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                $fields[$request_field] = trim((string) $value);
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Validates that the whois details NameSilo requires for a contact were given for each role
+     * not using the registrant's contact. Sets Input errors on failure.
+     *
+     * @param array $details The submitted details for each role, from contactDetailsFromPost()
+     * @param array $same Whether each role is to use the registrant's contact, keyed by role
+     * @param array $whois_fields The Namesilo.whois_fields config
+     * @return bool True if the details are valid, false otherwise
+     */
+    private function validateContactDetails(array $details, array $same, array $whois_fields)
+    {
+        $required = ['fn', 'ln', 'ad', 'cy', 'st', 'zp', 'ct', 'em', 'ph'];
+
+        $errors = [];
+        foreach ($details as $section => $section_details) {
+            if (!empty($same[$section])) {
+                continue;
+            }
+
+            foreach ($whois_fields as $field) {
+                if (in_array($field['rp'], $required) && $section_details[$field['rp']] === '') {
+                    $errors[$section . '_' . $field['rp']] = [
+                        'empty' => Language::_(
+                            'Namesilo.!error.whois_field.empty',
+                            true,
+                            Language::_('Namesilo.tab_whois.section_' . $section, true),
+                            $field['label']
+                        )
+                    ];
+                }
+            }
+        }
+
+        if ($errors) {
+            $this->Input->setErrors($errors);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Gets the client's own NameSilo contacts from the module client meta
+     *
+     * @param stdClass $service A stdClass object representing the current service
+     * @param int $module_id The ID of this module
+     * @return array The client's contact names, keyed by contact ID
+     */
+    private function getClientContacts($service, $module_id)
+    {
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module_id, $service->module_row_id);
+
+        return $contact_meta ? (json_decode($contact_meta->value, true) ?? []) : [];
+    }
+
+    /**
+     * Stores the client's own NameSilo contacts in the module client meta
+     *
+     * @param stdClass $service A stdClass object representing the current service
+     * @param int $module_id The ID of this module
+     * @param array $contacts The client's contact names, keyed by contact ID
+     */
+    private function setClientContacts($service, $module_id, array $contacts)
+    {
+        $this->ModuleClientMeta->set(
+            $service->client_id,
+            $module_id,
+            $service->module_row_id,
+            [['key' => 'contacts', 'value' => json_encode($contacts)]]
+        );
     }
 
     /**

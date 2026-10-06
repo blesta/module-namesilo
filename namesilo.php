@@ -2842,8 +2842,21 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
+        // The client's own contacts, the only ones that may be set as their default
+        $contacts = [];
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true) ?? [];
+        }
+
         if (!empty($post)) {
-            if (isset($post['submit']) && $post['default_contact_id']) {
+            if (isset($post['submit']) && !empty($post['default_contact_id'])
+                && !array_key_exists((string) $post['default_contact_id'], $contacts)
+            ) {
+                $this->Input->setErrors(
+                    ['default_contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+                );
+            } elseif (isset($post['submit']) && !empty($post['default_contact_id'])) {
                 $this->ModuleClientMeta->set(
                     $service->client_id,
                     $module->id,
@@ -2865,12 +2878,6 @@ class Namesilo extends RegistrarModule
             );
 
             $vars = (object) ['default_contact_id' => $default_meta->value ?? null];
-        }
-
-        $contacts = [];
-        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
-        if ($contact_meta) {
-            $contacts = json_decode($contact_meta->value, true);
         }
 
         $this->view->set('vars', $vars);

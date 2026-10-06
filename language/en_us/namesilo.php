@@ -101,6 +101,8 @@ $lang['Namesilo.tab_email_forwarding.field_email_address'] = 'Email Address';
 $lang['Namesilo.tab_email_forwarding.field_forward_to'] = 'Forward To';
 $lang['Namesilo.tab_email_forwarding.field_delete'] = 'Delete';
 $lang['Namesilo.tab_email_forwarding.field_submit'] = 'Update Forwarders';
+$lang['Namesilo.!error.email_forwarding.max_forwards'] = 'Email forwarding supports a maximum of 5 forwarding addresses per email.';
+$lang['Namesilo.!error.email_forwarding.new_email_to_empty'] = 'Please enter an address to forward the new email to.';
 
 $lang['Namesilo.tab_nameservers.title'] = 'Name Servers';
 $lang['Namesilo.tab_nameservers.desc'] = 'We allow up to 5 possible name servers, although only 2 are required. It is important that you do not enter the IP address of the name server, but instead enter the actual name server name. Name servers are typically formatted like "NS1.host.com".';

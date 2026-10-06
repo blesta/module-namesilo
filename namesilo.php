@@ -2768,28 +2768,66 @@ class Namesilo extends RegistrarModule
                 $response = $email_forwarding->deleteEmailForward($args);
                 $this->processResponse($api, $response);
             } else {
+                $input_errors = [];
+
                 // Add a new forwarder
                 if (!empty($post['new_email'])) {
-                    $post['emails'][$post['new_email'] . '@' . $fields->domain] = [$post['new_email_to']];
+                    if (empty($post['new_email_to'])) {
+                        $input_errors['new_email_to'] = [
+                            'empty' => Language::_('Namesilo.!error.email_forwarding.new_email_to_empty', true)
+                        ];
+                    } else {
+                        $post['emails'][$post['new_email'] . '@' . $fields->domain] = [$post['new_email_to']];
+                    }
                 }
 
-                // Add or update email forwarders
-                foreach ($post['emails'] ?? [] as $email => $forwarders) {
-                    $args_forwarders = [];
-                    $i = 1;
-                    foreach ($forwarders as $forwarder) {
-                        if (!empty($forwarder)) {
-                            $args_forwarders['forward' . $i] = $forwarder;
-                            $i++;
-                        }
-                    }
+                // The API accepts at most 5 forwarding targets (forward1-forward5); validate
+                // before submitting anything rather than silently sending forward6+
+                foreach ($post['emails'] ?? [] as $forwarders) {
+                    $non_empty_forwarders = array_filter($forwarders, function ($forwarder) {
+                        return $forwarder !== '' && $forwarder !== null;
+                    });
 
-                    $args = array_merge([
-                        'domain' => $fields->domain,
-                        'email' => $email
-                    ], $args_forwarders);
-                    $response = $email_forwarding->configureEmailForward($args);
-                    $this->processResponse($api, $response);
+                    if (count($non_empty_forwarders) > 5) {
+                        $input_errors['emails'] = [
+                            'max_forwards' => Language::_('Namesilo.!error.email_forwarding.max_forwards', true)
+                        ];
+                        break;
+                    }
+                }
+
+                if (!empty($input_errors)) {
+                    $this->Input->setErrors($input_errors);
+                } else {
+                    // Add or update email forwarders
+                    foreach ($post['emails'] ?? [] as $email => $forwarders) {
+                        $args_forwarders = [];
+                        $i = 1;
+                        foreach ($forwarders as $forwarder) {
+                            if (!empty($forwarder)) {
+                                $args_forwarders['forward' . $i] = $forwarder;
+                                $i++;
+                            }
+                        }
+
+                        // The API wants only the local part of the address (or "*" for a
+                        // catch-all); strip a trailing "@<this domain>" if present, otherwise
+                        // take everything before the last "@"
+                        $domain_suffix = '@' . $fields->domain;
+                        if (strcasecmp(substr($email, -strlen($domain_suffix)), $domain_suffix) === 0) {
+                            $local_email = substr($email, 0, -strlen($domain_suffix));
+                        } else {
+                            $at_position = strrpos($email, '@');
+                            $local_email = $at_position !== false ? substr($email, 0, $at_position) : $email;
+                        }
+
+                        $args = array_merge([
+                            'domain' => $fields->domain,
+                            'email' => $local_email
+                        ], $args_forwarders);
+                        $response = $email_forwarding->configureEmailForward($args);
+                        $this->processResponse($api, $response);
+                    }
                 }
             }
 

@@ -761,7 +761,28 @@ class Namesilo extends RegistrarModule
                 // Handle transfer
                 if (isset($vars['auth']) && $vars['auth']) {
                     // Check if the domain is available for transfer
-                    if (!$this->checkTransferAvailability($vars['domain'], $row->id)) {
+                    $transfer_check = $this->getTransferAvailability([$vars['domain']], $row->id, true)[0];
+                    if (!$transfer_check['available'] || $transfer_check['premium']) {
+                        if ($transfer_check['premium']) {
+                            $this->Input->setErrors(
+                                ['availability' => ['premium' => Language::_(
+                                    'Namesilo.!error.premium_domain',
+                                    true,
+                                    $vars['domain']
+                                )]]
+                            );
+                        } elseif (!$transfer_check['failed'] || !$this->Input->errors()) {
+                            // A failed API request will have already set its own errors
+                            $this->Input->setErrors(
+                                ['domain' => ['transfer_unavailable' => Language::_(
+                                    'Namesilo.!error.domain_not_transferable',
+                                    true,
+                                    $vars['domain'],
+                                    $transfer_check['reason']
+                                )]]
+                            );
+                        }
+
                         if ($created_contact_id) {
                             $domains->deleteContacts(['contact_id' => $created_contact_id]);
                         }
@@ -3960,65 +3981,102 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Verifies that the provided domain name is available for transfer
+     * Verifies that the provided domain name(s) are available for transfer
      *
-     * @param string $domain The domain to lookup
+     * Blesta's order form calls this first as a bulk method with an array of domains,
+     * then falls back to one call per domain. No errors are set here, since any error
+     * would be shown on the order form; unavailable and premium domains just return false.
+     *
+     * @param string|array $domain The domain to lookup, or a list of domains to lookup
      * @param int $module_row_id The ID of the module row to fetch for the current module
-     * @return bool True if the domain is available for transfer, false otherwise
+     * @return bool|array True if the domain is available for transfer, false otherwise. If a list
+     *  of domains was given, an array keyed by each domain with the same true/false value
      */
     public function checkTransferAvailability($domain, $module_row_id = null)
     {
-        $row = $this->getModuleRow($module_row_id);
-        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $domains = is_array($domain) ? array_values($domain) : [$domain];
+        $details = $this->getTransferAvailability($domains, $module_row_id);
 
-        $domains = new NamesiloDomains($api);
-        $result = $domains->checkTransfer(['domains' => $domain]);
-        $this->processResponse($api, $result);
-
-        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
-            return false;
+        $availability = [];
+        foreach ($domains as $index => $name) {
+            $availability[$name] = $details[$index]['available'] && !$details[$index]['premium'];
         }
 
-        $responseXML = $result->responseXML();
+        return is_array($domain) ? $availability : reset($availability);
+    }
 
-        // Look for this domain among the transferable domains
-        foreach (($responseXML->xpath('//available/domain') ?: []) as $available) {
-            if ((string) $available !== $domain) {
+    /**
+     * Fetches the transfer availability of the given domains from NameSilo
+     *
+     * @param array $domains A list of domains to lookup
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @param bool $set_errors True to set Input errors if the API request fails, false to only log it
+     * @return array A list of results in the same order as $domains, each containing:
+     *
+     *  - available True if NameSilo listed the domain as transferable, false otherwise
+     *  - premium True if NameSilo flagged the domain as premium, false otherwise
+     *  - reason The reason given by NameSilo if the domain cannot be transferred
+     *  - failed True if the API request for this domain failed, false otherwise
+     */
+    private function getTransferAvailability(array $domains, $module_row_id = null, $set_errors = false)
+    {
+        $default = ['available' => false, 'premium' => false, 'reason' => '', 'failed' => true];
+        $results = array_fill(0, count($domains), $default);
+
+        $row = $this->getModuleRow($module_row_id);
+        if (!$row) {
+            return $results;
+        }
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $command = new NamesiloDomains($api);
+
+        // NameSilo returns domains in lowercase, so match them case-insensitively
+        $normalized = [];
+        foreach ($domains as $index => $domain) {
+            $normalized[$index] = strtolower(trim((string) $domain));
+        }
+
+        // The API accepts up to 200 domains per request
+        foreach (array_chunk($normalized, 200, true) as $chunk) {
+            $result = $command->checkTransfer(['domains' => implode(',', array_unique($chunk))]);
+            if ($set_errors) {
+                $this->processResponse($api, $result);
+            } else {
+                $this->logRequest($api, $result);
+            }
+
+            $responseXML = $result->responseXML();
+            if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail' || !$responseXML) {
                 continue;
             }
 
-            $attributes = $available->attributes();
-            if (isset($attributes->premium) && $attributes->premium == '1') {
-                $this->Input->setErrors(
-                    ['availability' => ['premium' => Language::_('Namesilo.!error.premium_domain', true, $domain)]]
-                );
-
-                return false;
+            // Collect the transferable domains and the reasons the others are not
+            $available = [];
+            foreach (($responseXML->xpath('//available/domain') ?: []) as $element) {
+                $attributes = $element->attributes();
+                $available[strtolower(trim((string) $element))] = isset($attributes->premium)
+                    && $attributes->premium == '1';
             }
 
-            return true;
-        }
+            $reasons = [];
+            foreach (($responseXML->xpath('//unavailable/domain') ?: []) as $element) {
+                $attributes = $element->attributes();
+                $reasons[strtolower(trim((string) $element))] = isset($attributes->reason)
+                    ? (string) $attributes->reason
+                    : '';
+            }
 
-        // The domain was not in the available element, look for a reason why not
-        $reason = '';
-        foreach (($responseXML->xpath('//unavailable/domain') ?: []) as $unavailable) {
-            if ((string) $unavailable === $domain) {
-                $attributes = $unavailable->attributes();
-                $reason = isset($attributes->reason) ? (string) $attributes->reason : '';
-                break;
+            foreach ($chunk as $index => $domain) {
+                $results[$index] = [
+                    'available' => array_key_exists($domain, $available),
+                    'premium' => $available[$domain] ?? false,
+                    'reason' => $reasons[$domain] ?? '',
+                    'failed' => false
+                ];
             }
         }
 
-        $this->Input->setErrors(
-            ['domain' => ['transfer_unavailable' => Language::_(
-                'Namesilo.!error.domain_not_transferable',
-                true,
-                $domain,
-                $reason
-            )]]
-        );
-
-        return false;
+        return $results;
     }
 
     /**

@@ -3129,10 +3129,15 @@ class Namesilo extends RegistrarModule
             if (!empty($post['forward_to'])) {
                 if (filter_var($post['forward_to'], FILTER_VALIDATE_URL)) {
                     $url_parts = parse_url($post['forward_to']);
+                    $address = ($url_parts['host'] ?? '')
+                        . (isset($url_parts['port']) ? ':' . $url_parts['port'] : '')
+                        . ($url_parts['path'] ?? '')
+                        . (isset($url_parts['query']) ? '?' . $url_parts['query'] : '')
+                        . (isset($url_parts['fragment']) ? '#' . $url_parts['fragment'] : '');
                     $domain_forward_response = $domains->domainForward([
                         'domain'   => $fields->domain,
                         'protocol' => $url_parts['scheme'] ?? 'https',
-                        'address'  => $url_parts['host'] ?? '',
+                        'address'  => $address,
                         'method'   => $post['forward_method'],
                     ]);
                     $this->processResponse($api, $domain_forward_response);
@@ -3148,6 +3153,15 @@ class Namesilo extends RegistrarModule
             'cloaked' => Language::_('Namesilo.tab_domain_forwarding.cloaked', true),
         ];
 
+        // Map NameSilo's forward_type response values to our method keys, rather than
+        // comparing against translated labels which may not match (e.g. "Cloaked Forward"
+        // vs our "Cloaked" label)
+        $forward_type_methods = [
+            'Permanent Forward (301)' => '301',
+            'Temporary Forward (302)' => '302',
+            'Cloaked Forward'         => 'cloaked',
+        ];
+
         $info_response = $domains->getDomainInfo(['domain' => $fields->domain])->response();
 
         $this->view = new View($view, 'default');
@@ -3156,7 +3170,7 @@ class Namesilo extends RegistrarModule
 
         $this->view->set('is_domain_forward', $info_response->traffic_type === 'Forwarded');
         $this->view->set('active_forward_url', $info_response->forward_url);
-        $this->view->set('active_forward_method', array_search($info_response->forward_type, $forward_method, true));
+        $this->view->set('active_forward_method', $forward_type_methods[$info_response->forward_type] ?? null);
         $this->view->set('forward_method', $forward_method);
         $this->view->set('protocol', ['https' => 'https', 'http' => 'http']);
         $this->view->set('info_response', $info_response);

@@ -2931,6 +2931,11 @@ class Namesilo extends RegistrarModule
             } else {
                 $input_errors = [];
 
+                // Each address posts a list of forwarding targets; don't fail on malformed input
+                if (!is_array($post['emails'] ?? [])) {
+                    $post['emails'] = [];
+                }
+
                 // Add a new forwarder
                 if (!empty($post['new_email'])) {
                     if (empty($post['new_email_to'])) {
@@ -2945,7 +2950,7 @@ class Namesilo extends RegistrarModule
                 // The API accepts at most 5 forwarding targets (forward1-forward5); validate
                 // before submitting anything rather than silently sending forward6+
                 foreach ($post['emails'] ?? [] as $forwarders) {
-                    $non_empty_forwarders = array_filter($forwarders, function ($forwarder) {
+                    $non_empty_forwarders = array_filter((array) $forwarders, function ($forwarder) {
                         return $forwarder !== '' && $forwarder !== null;
                     });
 
@@ -2964,7 +2969,7 @@ class Namesilo extends RegistrarModule
                     foreach ($post['emails'] ?? [] as $email => $forwarders) {
                         $args_forwarders = [];
                         $i = 1;
-                        foreach ($forwarders as $forwarder) {
+                        foreach ((array) $forwarders as $forwarder) {
                             if (!empty($forwarder)) {
                                 $args_forwarders['forward' . $i] = $forwarder;
                                 $i++;

@@ -3570,8 +3570,9 @@ class Namesilo extends RegistrarModule
      *    for all of the domain's mail (RFC 7208 3.2 / 4.5)
      *  - a second DMARC record at the same host: receivers ignore DMARC entirely (RFC 7489 6.6.3)
      *  - a second DKIM key at the same selector: results are undefined (RFC 6376 3.6.2.2)
-     *  - a DMARC record anywhere but _dmarc, or a DKIM key anywhere but <selector>._domainkey,
-     *    where receivers never look for it
+     *  - a DMARC record anywhere but _dmarc (or _dmarc.<subdomain>, or an external report
+     *    authorization host <other-domain>._report._dmarc, RFC 7489 7.1), or a DKIM key anywhere
+     *    but <selector>._domainkey, where receivers never look for it
      *
      * @param array $records The domain's current records (getDnsRecords())
      * @param string $host The host being saved (relative, as normalizeDnsHost() returns)
@@ -3588,7 +3589,9 @@ class Namesilo extends RegistrarModule
         }
 
         $fqdn = $host === '' ? $domain : $host . '.' . $domain;
-        if ($kind === 'dmarc' && !preg_match('/^_dmarc(\.|$)/', $host)) {
+        // Report authorization records ("v=DMARC1" at <other-domain>._report._dmarc) are each
+        // one record per host, so the duplicate check below covers them as is
+        if ($kind === 'dmarc' && !preg_match('/^(.+\._report\.)?_dmarc(\.|$)/', $host)) {
             return ['key' => 'Namesilo.!error.dns_value.dmarc_host', 'args' => ['_dmarc.' . $domain]];
         }
         if ($kind === 'dkim' && !preg_match('/(^|\.)_domainkey(\.|$)/', $host)) {

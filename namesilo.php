@@ -353,8 +353,8 @@ class Namesilo extends RegistrarModule
                     }
 
                     $contactsInfo = $domains_api->getContacts(['contact_id' => $contact_id]);
-                        $this->processResponse($this->api, $contactsInfo);
-                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+                    $this->processResponse($this->api, $contactsInfo);
+                    if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
                         continue;
                     }
 

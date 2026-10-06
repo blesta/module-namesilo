@@ -4633,7 +4633,12 @@ class Namesilo extends RegistrarModule
         );
 
         if ($cache) {
-            $result = safe_unserialize(base64_decode($cache));
+            // Stored as JSON: Blesta's safe_unserialize() refuses objects, so a serialized
+            // response came back as __PHP_Incomplete_Class and left the prices empty
+            $cached_result = json_decode(base64_decode($cache));
+            if (isset($cached_result->detail) && $cached_result->detail == 'success') {
+                $result = $cached_result;
+            }
         }
 
         Loader::loadModels($this, ['Currencies']);
@@ -4655,7 +4660,7 @@ class Namesilo extends RegistrarModule
                 try {
                     Cache::writeCache(
                         'tlds_prices',
-                        base64_encode(serialize($result)),
+                        base64_encode(json_encode($result)),
                         strtotime(Configure::get('Blesta.cache_length')) - time(),
                         Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
                     );

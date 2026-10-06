@@ -1383,8 +1383,10 @@ class Namesilo extends RegistrarModule
         if (empty($vars['sandbox'])) {
             $vars['sandbox'] = 'false';
         }
+        // client_contacts defaults to on, so only an unchecked box on the add row form turns it off,
+        // not a request (e.g. through the API) that leaves the field out
         if (empty($vars['client_contacts'])) {
-            $vars['client_contacts'] = 'false';
+            $vars['client_contacts'] = isset($vars['namesilo_module']) ? 'false' : 'true';
         }
         if (empty($vars['auto_renew_new'])) {
             $vars['auto_renew_new'] = 'false';
@@ -1444,8 +1446,14 @@ class Namesilo extends RegistrarModule
         if (empty($vars['sandbox'])) {
             $vars['sandbox'] = 'false';
         }
+        // client_contacts defaults to on, so only an unchecked box on the edit row form turns it off;
+        // a request (e.g. through the API) that leaves the field out keeps the saved value
         if (empty($vars['client_contacts'])) {
-            $vars['client_contacts'] = 'false';
+            if (isset($vars['namesilo_module'])) {
+                $vars['client_contacts'] = 'false';
+            } else {
+                unset($vars['client_contacts']);
+            }
         }
         if (empty($vars['auto_renew_new'])) {
             $vars['auto_renew_new'] = 'false';
@@ -2037,7 +2045,7 @@ class Namesilo extends RegistrarModule
                 unset($tabs['tabClientEmailForwarding']);
             }
 
-            // Contact management is off unless enabled on the module row
+            // Contact management is on unless turned off on the module row
             if (!$this->clientContactsEnabled($service)) {
                 unset($tabs['tabClientWhois'], $tabs['tabClientManageContacts']);
             }

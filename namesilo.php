@@ -713,15 +713,20 @@ class Namesilo extends RegistrarModule
                     $fields['payment_id'] = $row->meta->payment_id;
                 }
 
-                // for .ca domains we need to create a special contact to use
+                // for .ca domains we need to create a special contact to use. $created_contact_id
+                // tracks only that contact (never the client's default contact_id set above) so
+                // cleanup below never deletes a contact this order didn't create.
+                $domains = new NamesiloDomains($api);
+                $created_contact_id = null;
+
                 if ($tld == '.ca') {
-                    $domains = new NamesiloDomains($api);
                     $response = $domains->addContacts($vars);
                     $this->processResponse($api, $response);
                     if ($this->Input->errors()) {
                         return;
                     }
-                    $fields['contact_id'] = $response->response()->contact_id;
+                    $created_contact_id = $response->response()->contact_id;
+                    $fields['contact_id'] = $created_contact_id;
                 }
 
                 // Validate if the provided term is valid
@@ -730,6 +735,10 @@ class Namesilo extends RegistrarModule
                         ['term' => ['invalid' => Language::_('Namesilo.!error.invalid_term', true)]]
                     );
 
+                    if ($created_contact_id) {
+                        $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                    }
+
                     return;
                 }
 
@@ -737,6 +746,10 @@ class Namesilo extends RegistrarModule
                 if (isset($vars['auth']) && $vars['auth']) {
                     // Check if the domain is available for transfer
                     if (!$this->checkTransferAvailability($vars['domain'], $row->id)) {
+                        if ($created_contact_id) {
+                            $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                        }
+
                         return;
                     }
 
@@ -745,8 +758,8 @@ class Namesilo extends RegistrarModule
                     $this->processResponse($api, $response);
 
                     if ($this->Input->errors()) {
-                        if (isset($vars['contact_id'])) {
-                            $domains->deleteContacts(['contact_id' => $vars['contact_id']]);
+                        if ($created_contact_id) {
+                            $domains->deleteContacts(['contact_id' => $created_contact_id]);
                         }
 
                         return;
@@ -757,6 +770,11 @@ class Namesilo extends RegistrarModule
                         $this->Input->setErrors(
                             ['domain' => ['invalid' => Language::_('Namesilo.!error.domain_unavailable', true)]]
                         );
+
+                        if ($created_contact_id) {
+                            $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                        }
+
                         return;
                     }
 
@@ -805,8 +823,8 @@ class Namesilo extends RegistrarModule
                         }
 
                         if (!$registered) {
-                            if (isset($vars['contact_id'])) {
-                                $domains->deleteContacts(['contact_id' => $vars['contact_id']]);
+                            if ($created_contact_id) {
+                                $domains->deleteContacts(['contact_id' => $created_contact_id]);
                             }
 
                             return;

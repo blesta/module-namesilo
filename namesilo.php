@@ -3626,7 +3626,8 @@ class Namesilo extends RegistrarModule
      * Checks DNS record input for mistakes NameSilo would reject with a less helpful
      * error: no record type selected (NameSilo: "The rrtype field is required"), an empty
      * value, or non-ASCII characters in the value, such as curly quotes pasted from a
-     * document (NameSilo: "Field Value contains invalid non-ASCII characters").
+     * document (NameSilo: "Field Value contains invalid non-ASCII characters"). The value is
+     * checked as it will be sent, after a TXT value's zone-file quotes and escapes are removed.
      *
      * @param array $post The submitted record
      * @return array Errors keyed by field, in Input::setErrors() format (empty if valid)
@@ -3642,10 +3643,11 @@ class Namesilo extends RegistrarModule
             $errors['record_type'] = ['required' => Language::_('Namesilo.!error.dns_record_type.required', true)];
         }
 
-        $value = trim($post['value'] ?? '');
+        // A quoted TXT value can decode to nothing ('""') or, through \DDD escapes, to any byte
+        $value = $this->dnsValueFromPost($post);
         if ($value === '') {
             $errors['value'] = ['empty' => Language::_('Namesilo.!error.dns_value.empty', true)];
-        } elseif (preg_match('/[^\x00-\x7F]/', $value)) {
+        } elseif (preg_match('/[^\x09\x20-\x7E]/', $value)) {
             $errors['value'] = ['ascii' => Language::_('Namesilo.!error.dns_value.ascii', true)];
         }
 
@@ -3823,19 +3825,31 @@ class Namesilo extends RegistrarModule
         return implode(' ', $strings);
     }
 
+    /**
+     * Returns the record value to send to NameSilo from the submitted record
+     *
+     * @param array $post The submitted record
+     * @return string The value, with a TXT value converted by normalizeTxtValue()
+     */
+    private function dnsValueFromPost(array $post)
+    {
+        // The value is entered in a textarea; a line break is never valid inside a record value, and
+        // wrapped SPF/DKIM values stay valid when their lines are joined with a space
+        $value = is_string($post['value'] ?? null) ? $post['value'] : '';
+        $value = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', $value));
+
+        return ($post['record_type'] ?? '') === 'TXT' ? $this->normalizeTxtValue($value) : $value;
+    }
+
     private function getDnsFields($post, $fields)
     {
         $record_type = $post['record_type'] ?? '';
-
-        // The value is entered in a textarea; a line break is never valid inside a record value, and
-        // wrapped SPF/DKIM values stay valid when their lines are joined with a space
-        $value = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', $post['value'] ?? ''));
 
         $dns_fields = [
             'domain' => $fields->domain,
             'rrtype' => $record_type,
             'rrhost' => $this->normalizeDnsHost($post['host'] ?? '', $fields->domain),
-            'rrvalue' => $record_type == 'TXT' ? $this->normalizeTxtValue($value) : $value,
+            'rrvalue' => $this->dnsValueFromPost($post),
             'rrttl' => trim($post['ttl'] ?? ''),
         ];
         if (isset($post['record_id']) && !empty($post['record_id'])) {

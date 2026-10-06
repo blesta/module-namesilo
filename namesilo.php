@@ -3632,7 +3632,9 @@ class Namesilo extends RegistrarModule
         $errors = [];
         $types = Configure::get('Namesilo.dns_records')['record_type']['options'] ?? [];
         $type = $post['record_type'] ?? '';
-        if ($type === '' || !array_key_exists($type, $types)) {
+        // Also checked on update, where the type is not sent: the edit form is built for these types only
+        // (e.g. it keeps an MX priority but has no SRV priority), so the views show Edit for them alone
+        if (!is_string($type) || $type === '' || !array_key_exists($type, $types)) {
             $errors['record_type'] = ['required' => Language::_('Namesilo.!error.dns_record_type.required', true)];
         }
 

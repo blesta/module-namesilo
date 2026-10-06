@@ -30,6 +30,10 @@
                                 ? ($record['distance'] ?? null)
                                 : null;
                             $fqdn = ($record['edit_host'] ?? '') !== '' ? $record['edit_host'] . '.' . $domain : $domain;
+                            // Only types the edit form supports can be edited; NameSilo cannot change a record's type,
+                            // and other types (e.g. SRV/CAA added in NameSilo's panel) have fields the form lacks
+                            $editable = is_string($record['type'] ?? null) && $record['type'] !== ''
+                                && array_key_exists($record['type'], $vars->selects['record_type']['options'] ?? []);
                             ?>
                             <tr>
                                 <td><?php echo $this->Html->safe($record['type'] ?? null); ?></td>
@@ -38,6 +42,7 @@
                                 <td><?php echo $this->Html->safe($distance); ?></td>
                                 <td><?php echo $this->Html->safe($record['ttl'] ?? null); ?></td>
                                 <td class="text-nowrap">
+                                    <?php if ($editable) { ?>
                                     <button type="button" class="btn btn-sm btn-light dns-record-edit"
                                         data-record-id="<?php echo $this->Html->safe($record['record_id'] ?? ''); ?>"
                                         data-type="<?php echo $this->Html->safe($record['type'] ?? ''); ?>"
@@ -47,6 +52,7 @@
                                         data-ttl="<?php echo $this->Html->safe($record['ttl'] ?? ''); ?>">
                                         <i class="fas fa-edit"></i> <?php $this->_('Namesilo.tab_dnsrecord.field_edit'); ?>
                                     </button>
+                                    <?php } ?>
                                     <?php
                                     $this->Form->create($dns_form_uri, ['class' => 'd-inline-block']);
                                     $this->Form->fieldHidden('action', 'deleteDnsRecord');

@@ -390,3 +390,5 @@ $lang['Namesilo.!error.EU.EUCountryOfCitizenship.invalid'] = 'Invalid country of
 $lang['Namesilo.!tooltip.upgrades_use_renewal'] = 'When enabled, upgrading to this package will use renewal prices if they are set. The regular price will be used if this setting is disabled.';
 
 require_once __DIR__ . '/notices.php';
+
+$lang['Namesilo.tab_whois.field_contact'] = 'Contact';

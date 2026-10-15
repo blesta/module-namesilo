@@ -380,10 +380,22 @@ class Namesilo extends RegistrarModule
 
         // For each client store a mapping of namesilo contact ids to names
         foreach ($client_contacts as $contact_client_id => $contacts) {
+            // A registration sync covers only the new domains, not the client's full portfolio.
+            $existing = $this->Record->select(['value'])->from('module_client_meta')->
+                where('module_id', '=', $module_row->module_id)->
+                where('module_row_id', '=', $module_row->id)->
+                where('client_id', '=', $contact_client_id)->
+                where('key', '=', 'contacts')->fetch();
+            $stored_contacts = $existing ? json_decode($existing->value, true) : [];
+            $contacts = array_replace(is_array($stored_contacts) ? $stored_contacts : [], $contacts);
+            foreach ($account_contact_ids as $account_contact_id => $unused) {
+                unset($contacts[$account_contact_id]);
+            }
             $this->Record->duplicate('module_id', '=', $module_row->module_id)->
                 duplicate('module_row_id', '=', $module_row->id)->
                 duplicate('client_id', '=', $contact_client_id)->
                 duplicate('key', '=', 'contacts')->
+                duplicate('value', '=', json_encode($contacts))->
                 insert(
                     'module_client_meta',
                     [
@@ -2700,6 +2712,7 @@ class Namesilo extends RegistrarModule
             if ($contact
                 && array_key_exists($contact_id, $client_contacts)
                 && !$this->isDefaultProfile($contact)
+                && !$this->isContactSharedWithOtherClient($contact_id, $service, $module->id)
                 && !isset($resulting_details[$contact_id])
             ) {
                 // The client's own contact: update it in place, as editing it in Manage Contacts does. Its
@@ -2837,6 +2850,26 @@ class Namesilo extends RegistrarModule
         $default_profile = $contact->default_profile ?? null;
 
         return is_scalar($default_profile) && (string) $default_profile === '1';
+    }
+
+    /**
+     * A contact listed for another client is shared and cannot be changed in place.
+     * Contact IDs are scoped to the registrar account (module row).
+     */
+    private function isContactSharedWithOtherClient($contact_id, $service, $module_id)
+    {
+        $rows = $this->Record->select(['value'])->from('module_client_meta')->
+            where('module_id', '=', $module_id)->
+            where('module_row_id', '=', $service->module_row_id)->
+            where('client_id', '!=', $service->client_id)->
+            where('key', '=', 'contacts')->fetchAll();
+        foreach ($rows as $row) {
+            $contacts = json_decode($row->value, true);
+            if (is_array($contacts) && array_key_exists($contact_id, $contacts)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -3056,7 +3089,9 @@ class Namesilo extends RegistrarModule
         }
 
         // The account's default contact profile is shared by every domain using it, never let a client change it
-        if ($this->isDefaultProfile($response->response()->contact ?? null)) {
+        if ($this->isDefaultProfile($response->response()->contact ?? null)
+            || $this->isContactSharedWithOtherClient($contact_id, $service, $module->id)
+        ) {
             $this->Input->setErrors(
                 ['contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
             );
@@ -3132,7 +3167,9 @@ class Namesilo extends RegistrarModule
         }
 
         // The account's default contact profile is shared by every domain using it, never let a client delete it
-        if ($this->isDefaultProfile($response->response()->contact ?? null)) {
+        if ($this->isDefaultProfile($response->response()->contact ?? null)
+            || $this->isContactSharedWithOtherClient($contact_id, $service, $module->id)
+        ) {
             $this->Input->setErrors(
                 ['contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
             );

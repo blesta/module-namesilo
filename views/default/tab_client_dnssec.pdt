@@ -19,14 +19,10 @@
                 <tbody>
                     <?php foreach ($vars->records ?? [] as $record) { ?>
                         <tr>
-                            <td><?php echo isset($record->key_tag) ? $record->key_tag : null; ?></td>
-                            <td><?php echo isset($record->algorithm) ? $record->algorithm : null; ?></td>
-                            <td><?php echo isset($record->digest_type) ? $record->digest_type : null; ?></td>
-                            <td style="word-wrap:break-word; overflow-wrap: break-word; word-break: break-word;"><?php echo isset(
-                                $record->digest,
-                            )
-                                ? $record->digest
-                                : null; ?></td>
+                            <td><?php echo $this->Html->safe($record->key_tag ?? null); ?></td>
+                            <td><?php echo $this->Html->safe($record->algorithm ?? null); ?></td>
+                            <td><?php echo $this->Html->safe($record->digest_type ?? null); ?></td>
+                            <td style="word-wrap:break-word; overflow-wrap: break-word; word-break: break-word;"><?php echo $this->Html->safe($record->digest ?? null); ?></td>
                             <td>
                                 <?php
                                 $this->Form->create(

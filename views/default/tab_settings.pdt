@@ -6,9 +6,7 @@
     <div class="mb-3">
     <?php
     $this->_('Namesilo.tab_settings.verification_text');
-    echo isset($vars->registrant_verification_info['email_address'])
-        ? $vars->registrant_verification_info['email_address']
-        : null;
+    echo $this->Html->safe($vars->registrant_verification_info['email_address'] ?? null);
     ?>:
     <?php if (
         (isset($vars->registrant_verification_info['verified'])

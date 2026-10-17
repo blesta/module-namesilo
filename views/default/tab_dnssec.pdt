@@ -21,10 +21,10 @@
         <!-- List existing ds records -->
         <tbody>
             <tr>
-                <td><?php echo $record->key_tag ?? null; ?></td>
-                <td><?php echo $record->algorithm ?? null; ?></td>
-                <td><?php echo $record->digest_type ?? null; ?></td>
-                <td><?php echo $record->digest ?? null; ?></td>
+                <td><?php echo $this->Html->safe($record->key_tag ?? null); ?></td>
+                <td><?php echo $this->Html->safe($record->algorithm ?? null); ?></td>
+                <td><?php echo $this->Html->safe($record->digest_type ?? null); ?></td>
+                <td><?php echo $this->Html->safe($record->digest ?? null); ?></td>
                 <td>
                     <?php
                     $this->Form->create(

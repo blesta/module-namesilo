@@ -3004,8 +3004,8 @@ class Namesilo extends RegistrarModule
                         [
                             'domain' => $fields->domain,
                             'digest' => $post['digest'],
-                            'keyTag' => $post['key_tag'],
-                            'digestType' => $post['digest_type'],
+                            'keyTag' => $post['keyTag'],
+                            'digestType' => $post['digestType'],
                             'alg' => $post['algorithm'],
                         ]
                     );
@@ -3015,8 +3015,8 @@ class Namesilo extends RegistrarModule
                         [
                             'domain' => $fields->domain,
                             'digest' => $post['digest'],
-                            'keyTag' => $post['key_tag'],
-                            'digestType' => $post['digest_type'],
+                            'keyTag' => $post['keyTag'],
+                            'digestType' => $post['digestType'],
                             'alg' => $post['algorithm'],
                         ]
                     );

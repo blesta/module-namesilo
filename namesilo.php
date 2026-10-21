@@ -329,6 +329,12 @@ class Namesilo extends RegistrarModule
         // Get the contact info for each domain
         $domains_api = $this->loadApiCommand('Domains', $module_row->id, true);
         $client_contacts = [];
+
+        // Rows registering domains with the account's default contact must not hand that shared contact
+        // to clients, or they could edit the registrant of every domain using it
+        $row = isset($module_row->meta) ? $module_row : $this->getModuleRow($module_row->id);
+        $skip_account_contact = ($row->meta->use_account_contact ?? 'false') == 'true';
+        $account_contact_ids = [];
         foreach ($queued_client_domains as $client_id => $queued_domains) {
             foreach ($queued_domains as $queued_domain) {
                 // Fetch domain info from Namesilo
@@ -348,17 +354,24 @@ class Namesilo extends RegistrarModule
 
                 // Get the name for each contact from Namesilo
                 foreach ($contact_ids as $contact_id) {
-                    if (array_key_exists($contact_id, $client_contacts[$client_id])) {
+                    if (array_key_exists($contact_id, $client_contacts[$client_id])
+                        || isset($account_contact_ids[$contact_id])
+                    ) {
                         continue;
                     }
 
                     $contactsInfo = $domains_api->getContacts(['contact_id' => $contact_id]);
-                        $this->processResponse($this->api, $contactsInfo);
-                    if ((self::$codes[$domainInfo->status()][1] ?? 'fail') == 'fail') {
+                    $this->processResponse($this->api, $contactsInfo);
+                    if ((self::$codes[$contactsInfo->status()][1] ?? 'fail') == 'fail') {
                         continue;
                     }
 
                     $contact_response = $contactsInfo->response();
+                    if ($skip_account_contact && ($contact_response->contact->default_profile ?? '0') == '1') {
+                        $account_contact_ids[$contact_id] = true;
+                        continue;
+                    }
+
                     $client_contacts[$client_id][$contact_id] = $contact_response->contact->first_name
                         . ' ' . $contact_response->contact->last_name;
                 }
@@ -367,10 +380,22 @@ class Namesilo extends RegistrarModule
 
         // For each client store a mapping of namesilo contact ids to names
         foreach ($client_contacts as $contact_client_id => $contacts) {
+            // A registration sync covers only the new domains, not the client's full portfolio.
+            $existing = $this->Record->select(['value'])->from('module_client_meta')->
+                where('module_id', '=', $module_row->module_id)->
+                where('module_row_id', '=', $module_row->id)->
+                where('client_id', '=', $contact_client_id)->
+                where('key', '=', 'contacts')->fetch();
+            $stored_contacts = $existing ? json_decode($existing->value, true) : [];
+            $contacts = array_replace(is_array($stored_contacts) ? $stored_contacts : [], $contacts);
+            foreach ($account_contact_ids as $account_contact_id => $unused) {
+                unset($contacts[$account_contact_id]);
+            }
             $this->Record->duplicate('module_id', '=', $module_row->module_id)->
                 duplicate('module_row_id', '=', $module_row->id)->
                 duplicate('client_id', '=', $contact_client_id)->
                 duplicate('key', '=', 'contacts')->
+                duplicate('value', '=', json_encode($contacts))->
                 insert(
                     'module_client_meta',
                     [
@@ -681,21 +706,32 @@ class Namesilo extends RegistrarModule
                     $contact_numbers = $this->Contacts->getNumbers($client->contact_id);
                 }
 
-                foreach ($whois_fields as $key => $value) {
-                    $input_fields[$value['rp']] = true;
-                    if (strpos($key, 'phone') !== false) {
-                        $vars[$value['rp']] = $this->formatPhone(
-                            isset($contact_numbers[0]) ? $contact_numbers[0]->number : null,
-                            $client->country
-                        );
-                    } else {
-                        $vars[$value['rp']] =
-                            (isset($value['lp']) && !empty($value['lp'])) ? $client->{$value['lp']} : 'NA';
+                // When registering with the NameSilo account's default contact, don't fill in (or
+                // send) WHOIS contact fields; NameSilo will use the account's default contact profile
+                // when none of the required fields are provided. .ca domains always require their own
+                // special contact, so this setting never applies to them.
+                $use_account_contact = $tld != '.ca'
+                    && ($row->meta->use_account_contact ?? 'false') == 'true';
+
+                if (!$use_account_contact) {
+                    foreach ($whois_fields as $key => $value) {
+                        $input_fields[$value['rp']] = true;
+                        if (strpos($key, 'phone') !== false) {
+                            $vars[$value['rp']] = $this->formatPhone(
+                                isset($contact_numbers[0]) ? $contact_numbers[0]->number : null,
+                                $client->country
+                            );
+                        } else {
+                            $vars[$value['rp']] =
+                                (isset($value['lp']) && !empty($value['lp'])) ? $client->{$value['lp']} : 'NA';
+                        }
                     }
                 }
 
                 $fields = array_intersect_key($vars, $input_fields);
 
+                // A default contact chosen for the client is always used, even when registering with the
+                // account's default contact; only clients without one get the account's contact
                 $default_meta = $this->ModuleClientMeta->get(
                     $vars['client_id'],
                     'default_contact_id',
@@ -703,8 +739,9 @@ class Namesilo extends RegistrarModule
                     $row->id
                 );
 
-                if (isset($default_meta->value)) {
+                if (isset($default_meta->value) && $default_meta->value !== '') {
                     $fields['contact_id'] = $default_meta->value;
+                    $use_account_contact = false;
                 }
                 if (!empty($row->meta->portfolio)) {
                     $fields['portfolio'] = $row->meta->portfolio;
@@ -713,15 +750,25 @@ class Namesilo extends RegistrarModule
                     $fields['payment_id'] = $row->meta->payment_id;
                 }
 
-                // for .ca domains we need to create a special contact to use
+                // Turn on auto-renew for new registrations/transfers, if configured
+                if (($row->meta->auto_renew_new ?? 'false') == 'true') {
+                    $fields['auto_renew'] = 1;
+                }
+
+                // for .ca domains we need to create a special contact to use. $created_contact_id
+                // tracks only that contact (never the client's default contact_id set above) so
+                // cleanup below never deletes a contact this order didn't create.
+                $domains = new NamesiloDomains($api);
+                $created_contact_id = null;
+
                 if ($tld == '.ca') {
-                    $domains = new NamesiloDomains($api);
                     $response = $domains->addContacts($vars);
                     $this->processResponse($api, $response);
                     if ($this->Input->errors()) {
                         return;
                     }
-                    $fields['contact_id'] = $response->response()->contact_id;
+                    $created_contact_id = $response->response()->contact_id;
+                    $fields['contact_id'] = $created_contact_id;
                 }
 
                 // Validate if the provided term is valid
@@ -730,13 +777,42 @@ class Namesilo extends RegistrarModule
                         ['term' => ['invalid' => Language::_('Namesilo.!error.invalid_term', true)]]
                     );
 
+                    if ($created_contact_id) {
+                        $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                    }
+
                     return;
                 }
 
                 // Handle transfer
                 if (isset($vars['auth']) && $vars['auth']) {
                     // Check if the domain is available for transfer
-                    if (!$this->checkTransferAvailability($vars['domain'], $row->id)) {
+                    $transfer_check = $this->getTransferAvailability([$vars['domain']], $row->id, true)[0];
+                    if (!$transfer_check['available'] || $transfer_check['premium']) {
+                        if ($transfer_check['premium']) {
+                            $this->Input->setErrors(
+                                ['availability' => ['premium' => Language::_(
+                                    'Namesilo.!error.premium_domain',
+                                    true,
+                                    $vars['domain']
+                                )]]
+                            );
+                        } elseif (!$transfer_check['failed'] || !$this->Input->errors()) {
+                            // A failed API request will have already set its own errors
+                            $this->Input->setErrors(
+                                ['domain' => ['transfer_unavailable' => Language::_(
+                                    'Namesilo.!error.domain_not_transferable',
+                                    true,
+                                    $vars['domain'],
+                                    $transfer_check['reason']
+                                )]]
+                            );
+                        }
+
+                        if ($created_contact_id) {
+                            $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                        }
+
                         return;
                     }
 
@@ -745,8 +821,8 @@ class Namesilo extends RegistrarModule
                     $this->processResponse($api, $response);
 
                     if ($this->Input->errors()) {
-                        if (isset($vars['contact_id'])) {
-                            $domains->deleteContacts(['contact_id' => $vars['contact_id']]);
+                        if ($created_contact_id) {
+                            $domains->deleteContacts(['contact_id' => $created_contact_id]);
                         }
 
                         return;
@@ -757,16 +833,21 @@ class Namesilo extends RegistrarModule
                         $this->Input->setErrors(
                             ['domain' => ['invalid' => Language::_('Namesilo.!error.domain_unavailable', true)]]
                         );
+
+                        if ($created_contact_id) {
+                            $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                        }
+
                         return;
                     }
 
                     // Handle registration
-                    $domains = new NamesiloDomains($api);
-
                     $response = $domains->create($fields);
                     $this->processResponse($api, $response);
 
-                    if ($this->Input->errors()) {
+                    $registered = !$this->Input->errors();
+
+                    if (!$registered) {
                         // if namesilo is running a promotion on registrations we have to work around their system if
                         // we are doing a multi-year registration
                         $error = 'Invalid number of years, or no years provided.';
@@ -780,21 +861,63 @@ class Namesilo extends RegistrarModule
                             $response = $domains->create($fields);
                             $this->processResponse($api, $response);
 
-                            // now extend the remainder of the years
-                            $fields['years'] = $total_years - 1;
-                            $response = $domains->renew($fields);
-                            $this->processResponse($api, $response);
+                            if (!$this->Input->errors()) {
+                                // The domain is now registered. A failure to extend the remaining term
+                                // below must not undo that, or abort the service, since the domain
+                                // itself was registered successfully.
+                                $registered = true;
+
+                                $remaining_years = $total_years - 1;
+                                if ($remaining_years > 0) {
+                                    $fields['years'] = $remaining_years;
+                                    $response = $domains->renew($fields);
+                                    $this->processResponse($api, $response);
+
+                                    if (($renew_errors = $this->Input->errors())) {
+                                        // The domain is registered for 1 year only. Record that as an
+                                        // explicit error in the module log, then clear the error so the
+                                        // registered domain's service is not aborted because of it.
+                                        // For domains in the Domains plugin package group, the plugin
+                                        // re-reads the registrar expiration date when the service is
+                                        // activated and moves its renew date to match.
+                                        $this->log(
+                                            'registerDomain multi-year workaround',
+                                            serialize([
+                                                'domain' => $vars['domain'],
+                                                'years_requested' => $total_years,
+                                                'years_registered' => 1,
+                                                'years_not_extended' => $remaining_years,
+                                                'errors' => $renew_errors
+                                            ]),
+                                            'output',
+                                            false
+                                        );
+                                        $this->Input->setErrors([]);
+                                    }
+                                }
+                            }
                         }
 
-                        if (isset($vars['contact_id'])) {
-                            $domains->deleteContacts(['contact_id' => $vars['contact_id']]);
-                        }
+                        if (!$registered) {
+                            if ($created_contact_id) {
+                                $domains->deleteContacts(['contact_id' => $created_contact_id]);
+                            }
 
-                        return;
+                            return;
+                        }
                     }
 
-                    // Sync domain contacts for the current client
-                    $this->synchronizeContactsForModuleRow($row, null, $client->id, [$client->id => [$vars['domain']]]);
+                    // Sync domain contacts for the current client. Skip it when the domain was registered
+                    // with the account's default contact: that contact is shared by every domain using it,
+                    // so it must not be listed (and editable) as one of this client's contacts.
+                    if (!$use_account_contact) {
+                        $this->synchronizeContactsForModuleRow(
+                            $row,
+                            null,
+                            $client->id,
+                            [$client->id => [$vars['domain']]]
+                        );
+                    }
                 }
             }
         }
@@ -1256,12 +1379,33 @@ class Namesilo extends RegistrarModule
      */
     public function addModuleRow(array &$vars)
     {
-        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module'];
+        $meta_fields = [
+            'user',
+            'key',
+            'sandbox',
+            'portfolio',
+            'payment_id',
+            'namesilo_module',
+            'client_contacts',
+            'auto_renew_new',
+            'use_account_contact'
+        ];
         $encrypted_fields = ['key'];
 
         // Set unspecified checkboxes
         if (empty($vars['sandbox'])) {
             $vars['sandbox'] = 'false';
+        }
+        // client_contacts defaults to on, so only an unchecked box on the add row form turns it off,
+        // not a request (e.g. through the API) that leaves the field out
+        if (empty($vars['client_contacts'])) {
+            $vars['client_contacts'] = isset($vars['namesilo_module']) ? 'false' : 'true';
+        }
+        if (empty($vars['auto_renew_new'])) {
+            $vars['auto_renew_new'] = 'false';
+        }
+        if (empty($vars['use_account_contact'])) {
+            $vars['use_account_contact'] = 'false';
         }
 
         $this->Input->setRules($this->getRowRules($vars));
@@ -1298,12 +1442,37 @@ class Namesilo extends RegistrarModule
      */
     public function editModuleRow($module_row, array &$vars)
     {
-        $meta_fields = ['user', 'key', 'sandbox', 'portfolio', 'payment_id', 'namesilo_module'];
+        $meta_fields = [
+            'user',
+            'key',
+            'sandbox',
+            'portfolio',
+            'payment_id',
+            'namesilo_module',
+            'client_contacts',
+            'auto_renew_new',
+            'use_account_contact'
+        ];
         $encrypted_fields = ['key'];
 
         // Set unspecified checkboxes
         if (empty($vars['sandbox'])) {
             $vars['sandbox'] = 'false';
+        }
+        // client_contacts defaults to on, so only an unchecked box on the edit row form turns it off;
+        // a request (e.g. through the API) that leaves the field out keeps the saved value
+        if (empty($vars['client_contacts'])) {
+            if (isset($vars['namesilo_module'])) {
+                $vars['client_contacts'] = 'false';
+            } else {
+                unset($vars['client_contacts']);
+            }
+        }
+        if (empty($vars['auto_renew_new'])) {
+            $vars['auto_renew_new'] = 'false';
+        }
+        if (empty($vars['use_account_contact'])) {
+            $vars['use_account_contact'] = 'false';
         }
 
         // Merge package settings on to the module row meta
@@ -1889,6 +2058,11 @@ class Namesilo extends RegistrarModule
                 unset($tabs['tabClientEmailForwarding']);
             }
 
+            // Contact management is on unless turned off on the module row
+            if (!$this->clientContactsEnabled($service)) {
+                unset($tabs['tabClientWhois'], $tabs['tabClientManageContacts']);
+            }
+
             return $tabs;
         }
     }
@@ -1910,6 +2084,19 @@ class Namesilo extends RegistrarModule
         }
 
         return false;
+    }
+
+    /**
+     * Checks if clients may manage WHOIS contacts for a service. On unless turned off on the module row
+     *
+     * @param stdClass $service An object representing the service
+     * @return bool True if the client WHOIS and contact tabs are enabled, false otherwise
+     */
+    private function clientContactsEnabled($service)
+    {
+        $row = $this->getModuleRow($service->module_row_id ?? null);
+
+        return ($row->meta->client_contacts ?? 'true') == 'true';
     }
 
     /**
@@ -1939,7 +2126,11 @@ class Namesilo extends RegistrarModule
      */
     public function tabClientWhois($package, $service, array $get = null, array $post = null, array $files = null)
     {
-        return $this->manageWhois('tab_client_whois', $package, $service, $get, $post, $files);
+        if (!$this->clientContactsEnabled($service)) {
+            return '';
+        }
+
+        return $this->manageClientWhois($package, $service, $post);
     }
 
     /**
@@ -1969,6 +2160,10 @@ class Namesilo extends RegistrarModule
      */
     public function tabClientManageContacts($package, $service, array $get = null, array $post = null, array $files = null)
     {
+        if (!$this->clientContactsEnabled($service)) {
+            return '';
+        }
+
         return $this->manageManageContacts('tab_client_manage_contacts', $package, $service, $get, $post, $files);
     }
 
@@ -2249,7 +2444,10 @@ class Namesilo extends RegistrarModule
                 if (!$this->Input->errors()) {
                     $domain_info = $domain_info->response();
                     $expires = $domain_info->expires;
-                    $edit_vars['date_renews'] = date('Y-m-d h:i:s', strtotime($expires));
+                    // Store as UTC (Blesta stores date_renews as a UTC wall-clock value; the
+                    // system timezone here is UTC). Use 24-hour "H" so a midnight expiry is
+                    // not saved as 12:00 (lowercase "h" is 12-hour without an AM/PM marker).
+                    $edit_vars['date_renews'] = date('Y-m-d H:i:s', strtotime($expires));
                     $this->Services->edit($service->id, $edit_vars, $bypass_module = true);
                 }
             }
@@ -2266,7 +2464,7 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Handle updating whois information
+     * Handle assigning contacts to the domain's whois roles (admin Whois tab)
      *
      * @param string $view The view to use
      * @param stdClass $package A stdClass object representing the current package
@@ -2303,15 +2501,6 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
-        if (!empty($post)) {
-            $post['domain'] = $fields->domain;
-            $domains->setContacts($post);
-
-            $vars = (object) $post;
-        } else {
-            $vars = (object) $contact_ids;
-        }
-
         $contacts = [];
         $module = $this->getModule();
         $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
@@ -2319,6 +2508,30 @@ class Namesilo extends RegistrarModule
             foreach (json_decode($contact_meta->value, true) ?? [] as $contact_id => $contact_name) {
                 $contacts[$contact_id] = $contact_name . '-' . $contact_id;
             }
+        }
+
+        // List the domain's current contacts too (e.g. a shared account contact that isn't one of the
+        // client's), so the form shows what is actually set and resubmitting it keeps them
+        foreach ($contact_ids as $contact_id) {
+            if (!array_key_exists($contact_id, $contacts)) {
+                $contacts[$contact_id] = $contact_id;
+            }
+        }
+
+        if (!empty($post)) {
+            $args = ['domain' => $fields->domain];
+            foreach ($sections as $section) {
+                if (isset($post[$section]) && $post[$section] !== '') {
+                    $args[$section] = $post[$section];
+                }
+            }
+
+            $response = $domains->setContacts($args);
+            $this->processResponse($this->api, $response);
+
+            $vars = (object) $post;
+        } else {
+            $vars = (object) $contact_ids;
         }
 
         $this->view->set('vars', $vars);
@@ -2345,7 +2558,461 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
-        return $domainInfo->response(true)['contact_ids'];
+        return $domainInfo->response(true)['contact_ids'] ?? false;
+    }
+
+    /**
+     * Handle the client Whois tab, which shows the domain's contact details as editable fields
+     *
+     * NameSilo contacts are profiles that can be assigned to any number of domains, so an edit must not
+     * change a contact that other domains or clients may share; see saveClientWhois()
+     *
+     * @param stdClass $package A stdClass object representing the current package
+     * @param stdClass $service A stdClass object representing the current service
+     * @param array $post Any POST parameters
+     * @return string The string representing the contents of this tab
+     */
+    private function manageClientWhois($package, $service, array $post = null)
+    {
+        // if the domain is pending transfer display a notice of such
+        $checkDomainStatus = $this->checkDomainStatus($service, $package);
+        if (isset($checkDomainStatus)) {
+            return $checkDomainStatus;
+        }
+
+        // Load the API command
+        $domains = $this->loadApiCommand('Domains', $service->module_row_id ?? $package->module_row);
+
+        $this->view = new View('tab_client_whois', 'default');
+        // Load the helpers required for this view
+        Loader::loadHelpers($this, ['Form', 'Html']);
+        $sections = ['registrant', 'administrative', 'technical', 'billing'];
+        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $fields = $this->serviceFieldsToObject($service->fields);
+
+        // Get the current contact IDs, and each of those contacts once
+        if (!($contact_ids = $this->getContactsByDomain($domains, $fields->domain))
+            || ($contacts = $this->getContactProfiles($domains, $contact_ids)) === false
+        ) {
+            return false;
+        }
+
+        $details = [];
+        $same = [];
+        if (!empty($post)) {
+            foreach ($sections as $section) {
+                $same[$section] = $section != 'registrant' && !empty($post['same_as_registrant'][$section]);
+                $details[$section] = $this->contactDetailsFromPost($post[$section] ?? [], $whois_fields);
+            }
+
+            if ($this->validateContactDetails($details, $same, $whois_fields)
+                && $this->saveClientWhois($domains, $service, $fields->domain, $contact_ids, $contacts, $details, $same)
+            ) {
+                $this->setMessage('success', Language::_('Namesilo.!success.whois_updated', true));
+            }
+        } else {
+            $registrant_id = (string) ($contact_ids['registrant'] ?? '');
+            foreach ($sections as $section) {
+                $contact_id = (string) ($contact_ids[$section] ?? '');
+                $same[$section] = $section != 'registrant' && $contact_id === $registrant_id;
+                $details[$section] = $this->contactDetails($contacts[$contact_id] ?? null, $whois_fields);
+            }
+        }
+
+        // Build each section's fields, named e.g. registrant[fn]
+        $section_fields = [];
+        foreach ($sections as $section) {
+            $input_fields = [];
+            $vars = new stdClass();
+            foreach ($whois_fields as $field) {
+                $name = $section . '[' . $field['rp'] . ']';
+                $input_fields[$name] = [
+                    'label' => $field['label'],
+                    'type' => $field['type'],
+                    'attributes' => ['id' => 'whois_' . $section . '_' . $field['rp']]
+                ];
+                $vars->{$name} = $details[$section][$field['rp']];
+            }
+
+            $section_fields[$section] = $this->arrayToModuleFields($input_fields, null, $vars)->getFields();
+        }
+
+        $this->view->set('sections', $sections);
+        $this->view->set('section_fields', $section_fields);
+        $this->view->set('same', $same);
+        $this->view->setDefaultView(self::$defaultModuleView);
+
+        return $this->view->fetch();
+    }
+
+    /**
+     * Saves the client's edits to the domain's contact details. For each role, the current contact is kept
+     * if its details are unchanged, updated in place if it's one of the client's own contacts (and not the
+     * NameSilo account's default profile), and otherwise replaced by a new contact holding the submitted
+     * details, so a contact shared with other domains or clients is never changed. Sets Input errors and
+     * stops at the first failed request.
+     *
+     * @param NamesiloDomains $domains The API command object to use for the requests
+     * @param stdClass $service A stdClass object representing the current service
+     * @param string $domain The domain being updated
+     * @param array $contact_ids The domain's current contact IDs, keyed by role
+     * @param array $contacts The domain's current contacts from contactList, keyed by contact ID (null if unknown)
+     * @param array $details The validated submitted details for each role, from contactDetailsFromPost()
+     * @param array $same Whether each role is to use the registrant's contact, keyed by role
+     * @return bool True if the contact details were saved, false otherwise
+     */
+    private function saveClientWhois(
+        NamesiloDomains $domains,
+        $service,
+        $domain,
+        array $contact_ids,
+        array $contacts,
+        array $details,
+        array $same
+    ) {
+        if (!isset($this->ModuleClientMeta)) {
+            Loader::loadModels($this, ['ModuleClientMeta']);
+        }
+        $module = $this->getModule();
+        $client_contacts = $this->getClientContacts($service, $module->id);
+        $whois_fields = Configure::get('Namesilo.whois_fields');
+        $registrant = $contacts[(string) ($contact_ids['registrant'] ?? '')] ?? null;
+
+        $results = [];
+        // The details each contact will have after this save, keyed by contact ID, for the contacts kept or
+        // updated; a contact a role keeps must not then be changed for another role
+        $resulting_details = [];
+        $updated = [];
+        // A contact already holding the given details (serialized), so roles with identical details share one
+        $contact_by_details = [];
+        foreach ($details as $section => $section_details) {
+            if (!empty($same[$section])) {
+                $results[$section] = $results['registrant'];
+                continue;
+            }
+
+            $contact_id = (string) ($contact_ids[$section] ?? '');
+            $contact = $contacts[$contact_id] ?? null;
+            $current_details = $resulting_details[$contact_id] ?? $this->contactDetails($contact, $whois_fields);
+            $details_key = serialize($section_details);
+
+            if ($contact && $section_details === $current_details) {
+                // Unchanged, keep this contact
+                $results[$section] = $contact_id;
+                $resulting_details[$contact_id] = $current_details;
+                $contact_by_details[$details_key] = $contact_id;
+                continue;
+            }
+
+            if (isset($contact_by_details[$details_key])) {
+                $results[$section] = $contact_by_details[$details_key];
+                continue;
+            }
+
+            if ($contact
+                && array_key_exists($contact_id, $client_contacts)
+                && !$this->isDefaultProfile($contact)
+                && !$this->isContactSharedWithOtherClient($contact_id, $service, $module->id)
+                && !isset($resulting_details[$contact_id])
+            ) {
+                // The client's own contact: update it in place, as editing it in Manage Contacts does. Its
+                // registry fields (e.g. .us nexus, CIRA) are passed back so they are kept.
+                $response = $domains->updateContacts(
+                    array_merge(
+                        $this->contactRegistryFields($contact),
+                        $section_details,
+                        ['contact_id' => $contact_id]
+                    )
+                );
+                $this->processResponse($this->api, $response);
+                if ($this->Input->errors()) {
+                    return false;
+                }
+
+                $updated[$contact_id] = true;
+                $client_contacts[$contact_id] = $section_details['fn'] . ' ' . $section_details['ln'];
+                $this->setClientContacts($service, $module->id, $client_contacts);
+            } else {
+                // A shared, account or unknown contact: create a new contact for this domain instead,
+                // carrying over the registry fields (e.g. .us nexus, CIRA) of the contact it replaces
+                $response = $domains->addContacts(
+                    array_merge(
+                        $this->contactRegistryFields($registrant),
+                        $this->contactRegistryFields($contact),
+                        $section_details
+                    )
+                );
+                $this->processResponse($this->api, $response);
+                $contact_id = (string) ($response->response()->contact_id ?? '');
+                if ($this->Input->errors()) {
+                    return false;
+                } elseif ($contact_id === '') {
+                    $this->Input->setErrors($this->getCommonError('invalid'));
+
+                    return false;
+                }
+
+                // Add it to the client's contacts now, so it is listed even if a later request fails
+                $updated[$contact_id] = true;
+                $client_contacts[$contact_id] = $section_details['fn'] . ' ' . $section_details['ln'];
+                $this->setClientContacts($service, $module->id, $client_contacts);
+            }
+
+            $results[$section] = $contact_id;
+            $resulting_details[$contact_id] = $section_details;
+            $contact_by_details[$details_key] = $contact_id;
+        }
+
+        // Assign the resulting contacts to the domain if any role changed
+        $changed = false;
+        foreach ($results as $section => $contact_id) {
+            $changed = $changed || $contact_id !== (string) ($contact_ids[$section] ?? '');
+        }
+
+        if ($changed) {
+            $response = $domains->setContacts(array_merge(['domain' => $domain], $results));
+            $this->processResponse($this->api, $response);
+            if ($this->Input->errors()) {
+                return false;
+            }
+        }
+
+        // Register the client's future domains with the registrant details they entered here, unless they
+        // have already chosen a default contact
+        if (isset($updated[$results['registrant']])) {
+            $default_meta = $this->ModuleClientMeta->get(
+                $service->client_id,
+                'default_contact_id',
+                $module->id,
+                $service->module_row_id
+            );
+
+            if (!isset($default_meta->value) || $default_meta->value === '') {
+                $this->ModuleClientMeta->set(
+                    $service->client_id,
+                    $module->id,
+                    $service->module_row_id,
+                    [['key' => 'default_contact_id', 'value' => $results['registrant']]]
+                );
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Fetches the given contacts from NameSilo, each distinct contact ID once
+     *
+     * @param NamesiloDomains $domains The API command object to use for the requests
+     * @param array $contact_ids A list of contact IDs
+     * @return array|false The contacts from contactList keyed by contact ID, null for a contact NameSilo
+     *  did not return, or false on error
+     */
+    private function getContactProfiles(NamesiloDomains $domains, array $contact_ids)
+    {
+        $contacts = [];
+        foreach ($contact_ids as $contact_id) {
+            $contact_id = (string) $contact_id;
+            if ($contact_id === '' || array_key_exists($contact_id, $contacts)) {
+                continue;
+            }
+
+            $response = $domains->getContacts(['contact_id' => $contact_id]);
+            $this->processResponse($this->api, $response);
+            if ($this->Input->errors()) {
+                return false;
+            }
+
+            // A single contact is returned as an object, several as a list
+            $contacts[$contact_id] = null;
+            $listed = $response->response()->contact ?? [];
+            foreach (is_array($listed) ? $listed : [$listed] as $contact) {
+                if (is_object($contact) && is_scalar($contact->contact_id ?? null)
+                    && (string) $contact->contact_id === $contact_id
+                ) {
+                    $contacts[$contact_id] = $contact;
+                    break;
+                }
+            }
+        }
+
+        return $contacts;
+    }
+
+    /**
+     * Checks whether a contact is the NameSilo account's default contact profile
+     *
+     * @param stdClass $contact The contact from contactList
+     * @return bool True if the contact is the account's default profile, false otherwise
+     */
+    private function isDefaultProfile($contact)
+    {
+        $default_profile = $contact->default_profile ?? null;
+
+        return is_scalar($default_profile) && (string) $default_profile === '1';
+    }
+
+    /**
+     * A contact listed for another client is shared and cannot be changed in place.
+     * Contact IDs are scoped to the registrar account (module row).
+     */
+    private function isContactSharedWithOtherClient($contact_id, $service, $module_id)
+    {
+        $rows = $this->Record->select(['value'])->from('module_client_meta')->
+            where('module_id', '=', $module_id)->
+            where('module_row_id', '=', $service->module_row_id)->
+            where('client_id', '!=', $service->client_id)->
+            where('key', '=', 'contacts')->fetchAll();
+        foreach ($rows as $row) {
+            $contacts = json_decode($row->value, true);
+            if (is_array($contacts) && array_key_exists($contact_id, $contacts)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gets a contact's whois details as request fields (e.g. fn, ln), with an empty string for any not set
+     *
+     * @param stdClass $contact The contact from contactList, or null if unknown
+     * @param array $whois_fields The Namesilo.whois_fields config
+     * @return array The contact's details, keyed by request field
+     */
+    private function contactDetails($contact, array $whois_fields)
+    {
+        $vars = $contact ? (array) $this->formatContact($contact, $whois_fields) : [];
+
+        $details = [];
+        foreach ($whois_fields as $field) {
+            $details[$field['rp']] = trim($vars[$field['rp']] ?? '');
+        }
+
+        return $details;
+    }
+
+    /**
+     * Gets the submitted whois details for one role as request fields (e.g. fn, ln)
+     *
+     * @param mixed $input The POST data for the role
+     * @param array $whois_fields The Namesilo.whois_fields config
+     * @return array The submitted details, keyed by request field
+     */
+    private function contactDetailsFromPost($input, array $whois_fields)
+    {
+        $input = is_array($input) ? $input : [];
+
+        $details = [];
+        foreach ($whois_fields as $field) {
+            $value = $input[$field['rp']] ?? '';
+            $details[$field['rp']] = is_scalar($value) ? trim((string) $value) : '';
+        }
+
+        return $details;
+    }
+
+    /**
+     * Gets a contact's registry-specific fields (.us nexus, CIRA, .eu citizenship) and fax as request fields,
+     * so they can be kept on a contact created or updated from the whois details alone
+     *
+     * @param stdClass $contact The contact from contactList, or null if unknown
+     * @return array The contact's non-empty registry fields, keyed by request field
+     */
+    private function contactRegistryFields($contact)
+    {
+        $registry_fields = [
+            'fax' => 'fx',
+            'usnc' => 'usnc',
+            'usap' => 'usap',
+            'calf' => 'calf',
+            'caln' => 'caln',
+            'caag' => 'caag',
+            'cawd' => 'cawd',
+            'eucs' => 'eucs'
+        ];
+
+        $fields = [];
+        foreach ($registry_fields as $contact_field => $request_field) {
+            $value = $contact->{$contact_field} ?? null;
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                $fields[$request_field] = trim((string) $value);
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Validates that the whois details NameSilo requires for a contact were given for each role
+     * not using the registrant's contact. Sets Input errors on failure.
+     *
+     * @param array $details The submitted details for each role, from contactDetailsFromPost()
+     * @param array $same Whether each role is to use the registrant's contact, keyed by role
+     * @param array $whois_fields The Namesilo.whois_fields config
+     * @return bool True if the details are valid, false otherwise
+     */
+    private function validateContactDetails(array $details, array $same, array $whois_fields)
+    {
+        $required = ['fn', 'ln', 'ad', 'cy', 'st', 'zp', 'ct', 'em', 'ph'];
+
+        $errors = [];
+        foreach ($details as $section => $section_details) {
+            if (!empty($same[$section])) {
+                continue;
+            }
+
+            foreach ($whois_fields as $field) {
+                if (in_array($field['rp'], $required) && $section_details[$field['rp']] === '') {
+                    $errors[$section . '_' . $field['rp']] = [
+                        'empty' => Language::_(
+                            'Namesilo.!error.whois_field.empty',
+                            true,
+                            Language::_('Namesilo.tab_whois.section_' . $section, true),
+                            $field['label']
+                        )
+                    ];
+                }
+            }
+        }
+
+        if ($errors) {
+            $this->Input->setErrors($errors);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Gets the client's own NameSilo contacts from the module client meta
+     *
+     * @param stdClass $service A stdClass object representing the current service
+     * @param int $module_id The ID of this module
+     * @return array The client's contact names, keyed by contact ID
+     */
+    private function getClientContacts($service, $module_id)
+    {
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module_id, $service->module_row_id);
+
+        return $contact_meta ? (json_decode($contact_meta->value, true) ?? []) : [];
+    }
+
+    /**
+     * Stores the client's own NameSilo contacts in the module client meta
+     *
+     * @param stdClass $service A stdClass object representing the current service
+     * @param int $module_id The ID of this module
+     * @param array $contacts The client's contact names, keyed by contact ID
+     */
+    private function setClientContacts($service, $module_id, array $contacts)
+    {
+        $this->ModuleClientMeta->set(
+            $service->client_id,
+            $module_id,
+            $service->module_row_id,
+            [['key' => 'contacts', 'value' => json_encode($contacts)]]
+        );
     }
 
     /**
@@ -2421,6 +3088,17 @@ class Namesilo extends RegistrarModule
             return false;
         }
 
+        // The account's default contact profile is shared by every domain using it, never let a client change it
+        if ($this->isDefaultProfile($response->response()->contact ?? null)
+            || $this->isContactSharedWithOtherClient($contact_id, $service, $module->id)
+        ) {
+            $this->Input->setErrors(
+                ['contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+            );
+
+            return $this->handleContactList($view, $package, $service, $get, []);
+        }
+
         if (!empty($post)) {
             $response = $domains->updateContacts($post);
             $this->processResponse($this->api, $response);
@@ -2486,6 +3164,17 @@ class Namesilo extends RegistrarModule
         $response = $domains->getContacts(['contact_id' => $contact_id]);
         if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
             return false;
+        }
+
+        // The account's default contact profile is shared by every domain using it, never let a client delete it
+        if ($this->isDefaultProfile($response->response()->contact ?? null)
+            || $this->isContactSharedWithOtherClient($contact_id, $service, $module->id)
+        ) {
+            $this->Input->setErrors(
+                ['contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+            );
+
+            return;
         }
 
         $response = $domains->deleteContacts(['contact_id' => $contact_id]);
@@ -2626,8 +3315,21 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
+        // The client's own contacts, the only ones that may be set as their default
+        $contacts = [];
+        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
+        if ($contact_meta) {
+            $contacts = json_decode($contact_meta->value, true) ?? [];
+        }
+
         if (!empty($post)) {
-            if (isset($post['submit']) && $post['default_contact_id']) {
+            if (isset($post['submit']) && !empty($post['default_contact_id'])
+                && !array_key_exists((string) $post['default_contact_id'], $contacts)
+            ) {
+                $this->Input->setErrors(
+                    ['default_contact_id' => ['invalid' => Language::_('Namesilo.!error.contact_not_allowed', true)]]
+                );
+            } elseif (isset($post['submit']) && !empty($post['default_contact_id'])) {
                 $this->ModuleClientMeta->set(
                     $service->client_id,
                     $module->id,
@@ -2649,12 +3351,6 @@ class Namesilo extends RegistrarModule
             );
 
             $vars = (object) ['default_contact_id' => $default_meta->value ?? null];
-        }
-
-        $contacts = [];
-        $contact_meta = $this->ModuleClientMeta->get($service->client_id, 'contacts', $module->id, $service->module_row_id);
-        if ($contact_meta) {
-            $contacts = json_decode($contact_meta->value, true);
         }
 
         $this->view->set('vars', $vars);
@@ -2713,28 +3409,71 @@ class Namesilo extends RegistrarModule
                 $response = $email_forwarding->deleteEmailForward($args);
                 $this->processResponse($api, $response);
             } else {
-                // Add a new forwarder
-                if (!empty($post['new_email'])) {
-                    $post['emails'][$post['new_email'] . '@' . $fields->domain] = [$post['new_email_to']];
+                $input_errors = [];
+
+                // Each address posts a list of forwarding targets; don't fail on malformed input
+                if (!is_array($post['emails'] ?? [])) {
+                    $post['emails'] = [];
                 }
 
-                // Add or update email forwarders
-                foreach ($post['emails'] ?? [] as $email => $forwarders) {
-                    $args_forwarders = [];
-                    $i = 1;
-                    foreach ($forwarders as $forwarder) {
-                        if (!empty($forwarder)) {
-                            $args_forwarders['forward' . $i] = $forwarder;
-                            $i++;
-                        }
+                // Add a new forwarder
+                if (!empty($post['new_email'])) {
+                    if (empty($post['new_email_to'])) {
+                        $input_errors['new_email_to'] = [
+                            'empty' => Language::_('Namesilo.!error.email_forwarding.new_email_to_empty', true)
+                        ];
+                    } else {
+                        $post['emails'][$post['new_email'] . '@' . $fields->domain] = [$post['new_email_to']];
                     }
+                }
 
-                    $args = array_merge([
-                        'domain' => $fields->domain,
-                        'email' => $email
-                    ], $args_forwarders);
-                    $response = $email_forwarding->configureEmailForward($args);
-                    $this->processResponse($api, $response);
+                // The API accepts at most 5 forwarding targets (forward1-forward5); validate
+                // before submitting anything rather than silently sending forward6+
+                foreach ($post['emails'] ?? [] as $forwarders) {
+                    $non_empty_forwarders = array_filter((array) $forwarders, function ($forwarder) {
+                        return $forwarder !== '' && $forwarder !== null;
+                    });
+
+                    if (count($non_empty_forwarders) > 5) {
+                        $input_errors['emails'] = [
+                            'max_forwards' => Language::_('Namesilo.!error.email_forwarding.max_forwards', true)
+                        ];
+                        break;
+                    }
+                }
+
+                if (!empty($input_errors)) {
+                    $this->Input->setErrors($input_errors);
+                } else {
+                    // Add or update email forwarders
+                    foreach ($post['emails'] ?? [] as $email => $forwarders) {
+                        $args_forwarders = [];
+                        $i = 1;
+                        foreach ((array) $forwarders as $forwarder) {
+                            if (!empty($forwarder)) {
+                                $args_forwarders['forward' . $i] = $forwarder;
+                                $i++;
+                            }
+                        }
+
+                        // The API wants only the local part of the address (or "*" for a
+                        // catch-all); strip a trailing "@<this domain>" if present, otherwise
+                        // take everything before the last "@"
+                        $domain_suffix = '@' . $fields->domain;
+                        if (strcasecmp(substr($email, -strlen($domain_suffix)), $domain_suffix) === 0) {
+                            $local_email = substr($email, 0, -strlen($domain_suffix));
+                        } else {
+                            $at_position = strrpos($email, '@');
+                            $local_email = $at_position !== false ? substr($email, 0, $at_position) : $email;
+                        }
+
+                        $args = array_merge([
+                            'domain' => $fields->domain,
+                            'email' => $local_email
+                        ], $args_forwarders);
+                        $response = $email_forwarding->configureEmailForward($args);
+                        $this->processResponse($api, $response);
+                    }
                 }
             }
 
@@ -2924,10 +3663,19 @@ class Namesilo extends RegistrarModule
 
         if (!empty($post)) {
             foreach ($post['hosts'] ?? [] as $host => $ips) {
+                // Renumber the non-empty IPs consecutively from ip1 (the API requires ip1 to
+                // be set, and treats the ip# keys positionally, not by form field position).
+                // The API allows up to 13 IPs (ip1-ip13); ignore any beyond that.
                 $ips_arr = [];
-                foreach ($ips as $key => $ip) {
+                $ip_index = 1;
+                foreach ($ips as $ip) {
                     if ($ip) {
-                        $ips_arr['ip' . ($key + 1)] = $ip;
+                        if ($ip_index > 13) {
+                            break;
+                        }
+
+                        $ips_arr['ip' . $ip_index] = $ip;
+                        $ip_index++;
                     }
                 }
 
@@ -2946,8 +3694,16 @@ class Namesilo extends RegistrarModule
             }
 
             if (!empty($post['new_host']) && !empty($post['new_host_ip'])) {
+                // The API wants the host label only, without the domain name; strip a
+                // trailing ".<this domain>" if the user typed the fully-qualified name
+                $new_host = $post['new_host'];
+                $domain_suffix = '.' . $fields->domain;
+                if (strcasecmp(substr($new_host, -strlen($domain_suffix)), $domain_suffix) === 0) {
+                    $new_host = substr($new_host, 0, -strlen($domain_suffix));
+                }
+
                 $response = $ns->create(
-                    ['domain' => $fields->domain, 'new_host' => $post['new_host'], 'ip1' => $post['new_host_ip']]
+                    ['domain' => $fields->domain, 'new_host' => $new_host, 'ip1' => $post['new_host_ip']]
                 );
                 $this->processResponse($api, $response);
             }
@@ -3028,7 +3784,11 @@ class Namesilo extends RegistrarModule
         $ds = $dns->dnsSecListRecords(['domain' => $fields->domain])->response();
 
         // get a consistent format because xml parsing in php is inconsistent
-        $ds->ds_record = isset($ds->ds_record) && !is_array($ds->ds_record) ? [$ds->ds_record] : $ds->ds_record;
+        if (!isset($ds->ds_record)) {
+            $ds->ds_record = [];
+        } elseif (!is_array($ds->ds_record)) {
+            $ds->ds_record = [$ds->ds_record];
+        }
 
         $vars->selects = Configure::get('Namesilo.dnssec');
         $vars->records = $ds->ds_record;
@@ -3074,10 +3834,15 @@ class Namesilo extends RegistrarModule
             if (!empty($post['forward_to'])) {
                 if (filter_var($post['forward_to'], FILTER_VALIDATE_URL)) {
                     $url_parts = parse_url($post['forward_to']);
+                    $address = ($url_parts['host'] ?? '')
+                        . (isset($url_parts['port']) ? ':' . $url_parts['port'] : '')
+                        . ($url_parts['path'] ?? '')
+                        . (isset($url_parts['query']) ? '?' . $url_parts['query'] : '')
+                        . (isset($url_parts['fragment']) ? '#' . $url_parts['fragment'] : '');
                     $domain_forward_response = $domains->domainForward([
                         'domain'   => $fields->domain,
                         'protocol' => $url_parts['scheme'] ?? 'https',
-                        'address'  => $url_parts['host'] ?? '',
+                        'address'  => $address,
                         'method'   => $post['forward_method'],
                     ]);
                     $this->processResponse($api, $domain_forward_response);
@@ -3093,6 +3858,15 @@ class Namesilo extends RegistrarModule
             'cloaked' => Language::_('Namesilo.tab_domain_forwarding.cloaked', true),
         ];
 
+        // Map NameSilo's forward_type response values to our method keys, rather than
+        // comparing against translated labels which may not match (e.g. "Cloaked Forward"
+        // vs our "Cloaked" label)
+        $forward_type_methods = [
+            'Permanent Forward (301)' => '301',
+            'Temporary Forward (302)' => '302',
+            'Cloaked Forward'         => 'cloaked',
+        ];
+
         $info_response = $domains->getDomainInfo(['domain' => $fields->domain])->response();
 
         $this->view = new View($view, 'default');
@@ -3101,7 +3875,7 @@ class Namesilo extends RegistrarModule
 
         $this->view->set('is_domain_forward', $info_response->traffic_type === 'Forwarded');
         $this->view->set('active_forward_url', $info_response->forward_url);
-        $this->view->set('active_forward_method', array_search($info_response->forward_type, $forward_method, true));
+        $this->view->set('active_forward_method', $forward_type_methods[$info_response->forward_type] ?? null);
         $this->view->set('forward_method', $forward_method);
         $this->view->set('protocol', ['https' => 'https', 'http' => 'http']);
         $this->view->set('info_response', $info_response);
@@ -3151,16 +3925,65 @@ class Namesilo extends RegistrarModule
         $fields = $this->serviceFieldsToObject($service->fields);
         $this->view->set('domain', $fields->domain);
 
+        // Download the zone as a standard BIND zone file; if the records can't be fetched, show the
+        // tab with the error rather than download what would look like an empty zone
+        if (($get['export'] ?? null) === 'zone') {
+            $records = $this->getDnsRecords($dns, $fields->domain, $api);
+            if (!$this->errors()) {
+                Loader::loadComponents($this, ['Download']);
+                $this->Download->setContentType('text/plain');
+                $this->Download->downloadData(
+                    $fields->domain . '.txt',
+                    $this->buildZoneFile($fields->domain, $records)
+                );
+                exit;
+            }
+        }
+
         if (!empty($post)) {
             if (isset($post['action'])) {
-                if ($post['action'] == 'addDnsRecord') {
+                $success_message = null;
+
+                // Catch input NameSilo would reject before calling it, with a clearer message
+                $input_errors = in_array($post['action'], ['addDnsRecord', 'updateDnsRecord'], true)
+                    ? $this->validateDnsInput($post)
+                    : [];
+
+                // SPF/DMARC/DKIM rules that break the domain's email when violated (one record
+                // per host/selector, and DMARC/DKIM only where receivers look for them)
+                if (!$input_errors
+                    && in_array($post['action'], ['addDnsRecord', 'updateDnsRecord'], true)
+                    && ($post['record_type'] ?? '') === 'TXT'
+                ) {
+                    $dns_fields = $this->getDnsFields($post, $fields);
+                    if (self::emailAuthRecordKind($dns_fields['rrvalue']) !== null) {
+                        $conflict = $this->emailAuthConflict(
+                            $this->getDnsRecords($dns, $fields->domain),
+                            $dns_fields['rrhost'],
+                            $dns_fields['rrvalue'],
+                            !empty($post['record_id']) ? $post['record_id'] : null,
+                            $fields->domain
+                        );
+                        if ($conflict) {
+                            $input_errors = [
+                                'value' => ['email_auth' => Language::_($conflict['key'], true, ...$conflict['args'])]
+                            ];
+                        }
+                    }
+                }
+
+                if ($input_errors) {
+                    $this->Input->setErrors($input_errors);
+                } elseif ($post['action'] == 'addDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsAddRecord($dns_fields);
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_added';
                 } elseif ($post['action'] == 'updateDnsRecord') {
                     $dns_fields = $this->getDnsFields($post, $fields);
                     $response = $dns->dnsUpdateRecord($dns_fields);
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_updated';
                 } elseif ($post['action'] == 'deleteDnsRecord') {
                     $response = $dns->dnsDeleteRecord(
                         [
@@ -3169,23 +3992,24 @@ class Namesilo extends RegistrarModule
                         ]
                     );
                     $this->processResponse($api, $response);
+                    $success_message = 'Namesilo.!success.dns_record_deleted';
+                }
+
+                if ($success_message && !$this->errors()) {
+                    $this->setMessage('success', Language::_($success_message, true));
+                }
+
+                // Keep what was typed when adding fails, so a long value isn't lost
+                if ($post['action'] == 'addDnsRecord' && $this->errors()) {
+                    $this->view->set('add_record', array_intersect_key(
+                        $post,
+                        array_flip(['record_type', 'host', 'value', 'distance', 'ttl'])
+                    ));
                 }
             }
         }
 
-        $records = $dns->dnsListRecords(['domain' => $fields->domain])->response(true);
-
-        // Get a consistent format because XML parsing in PHP is inconsistent
-        if (isset($records['resource_record']) && !is_array($records['resource_record'])) {
-            $records['resource_record'] = (array) $records['resource_record'];
-        } elseif (!isset($records['resource_record'])) {
-            $records['resource_record'] = [];
-        }
-
-        // We are expecting a multidimensional array
-        if ($this->isMultiArray($records['resource_record']) === false) {
-            $records['resource_record'] = [0 => $records['resource_record']];
-        }
+        $records = ['resource_record' => $this->getDnsRecords($dns, $fields->domain)];
 
         // Show nameservers alert
         $this->validateAndAlertNameservers($fields->domain, $row->id ?? null);
@@ -3203,23 +4027,383 @@ class Namesilo extends RegistrarModule
         return $this->view->fetch();
     }
 
+    /**
+     * Which email-authentication record a TXT value is, by its required leading version tag:
+     * SPF ("v=spf1", RFC 7208 4.5), DMARC ("v=DMARC1", RFC 7489 6.3) or DKIM ("v=DKIM1",
+     * RFC 6376 3.6.1). Case-insensitive, since some providers publish "V=SPF1".
+     *
+     * @param string $value The raw TXT value (already unquoted)
+     * @return string|null 'spf', 'dmarc', 'dkim', or null for any other TXT value
+     */
+    private static function emailAuthRecordKind($value)
+    {
+        $value = trim((string) $value);
+        if (preg_match('/^v=spf1(\s|$)/i', $value)) {
+            return 'spf';
+        }
+        if (preg_match('/^v=dmarc1\s*(;|$)/i', $value)) {
+            return 'dmarc';
+        }
+        if (preg_match('/^v=dkim1\s*(;|$)/i', $value)) {
+            return 'dkim';
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks a new or edited TXT value against the email-authentication rules that break mail
+     * when violated, and returns the problem as a language key plus arguments (or null):
+     *
+     *  - a second SPF record at the same host: SPF evaluation returns permerror, so SPF fails
+     *    for all of the domain's mail (RFC 7208 3.2 / 4.5)
+     *  - a second DMARC record at the same host: receivers ignore DMARC entirely (RFC 7489 6.6.3)
+     *  - a second DKIM key at the same selector: results are undefined (RFC 6376 3.6.2.2)
+     *  - a DMARC record anywhere but _dmarc (or _dmarc.<subdomain>, or an external report
+     *    authorization host <other-domain>._report._dmarc, RFC 7489 7.1), or a DKIM key anywhere
+     *    but <selector>._domainkey, where receivers never look for it
+     *
+     * @param array $records The domain's current records (getDnsRecords())
+     * @param string $host The host being saved (relative, as normalizeDnsHost() returns)
+     * @param string $value The TXT value being saved (unquoted)
+     * @param string|null $record_id The record being edited (excluded from the check), or null
+     * @param string $domain The domain
+     * @return array|null ['key' => language key, 'args' => [...]] or null when fine
+     */
+    private function emailAuthConflict(array $records, $host, $value, $record_id, $domain)
+    {
+        $kind = self::emailAuthRecordKind($value);
+        if ($kind === null) {
+            return null;
+        }
+
+        $fqdn = $host === '' ? $domain : $host . '.' . $domain;
+        // Report authorization records ("v=DMARC1" at <other-domain>._report._dmarc) are each
+        // one record per host, so the duplicate check below covers them as is
+        if ($kind === 'dmarc' && !preg_match('/^(.+\._report\.)?_dmarc(\.|$)/', $host)) {
+            return ['key' => 'Namesilo.!error.dns_value.dmarc_host', 'args' => ['_dmarc.' . $domain]];
+        }
+        if ($kind === 'dkim' && !preg_match('/(^|\.)_domainkey(\.|$)/', $host)) {
+            return ['key' => 'Namesilo.!error.dns_value.dkim_host', 'args' => [$domain]];
+        }
+
+        foreach ($records as $record) {
+            if (!is_array($record) || strtoupper($record['type'] ?? '') !== 'TXT') {
+                continue;
+            }
+            if ($record_id !== null && ($record['record_id'] ?? null) === $record_id) {
+                continue;
+            }
+            if ($this->normalizeDnsHost($record['host'] ?? '', $domain) !== $host) {
+                continue;
+            }
+            // Records created elsewhere may carry literal zone-file quotes; compare unquoted
+            $existing = $this->normalizeTxtValue((string) ($record['value'] ?? ''));
+            if (self::emailAuthRecordKind($existing) === $kind) {
+                return ['key' => 'Namesilo.!error.dns_value.duplicate_' . $kind, 'args' => [$fqdn, $existing]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks DNS record input for mistakes NameSilo would reject with a less helpful
+     * error: no record type selected (NameSilo: "The rrtype field is required"), an empty
+     * value, or non-ASCII characters in the value, such as curly quotes pasted from a
+     * document (NameSilo: "Field Value contains invalid non-ASCII characters"). The value is
+     * checked as it will be sent, after a TXT value's zone-file quotes and escapes are removed.
+     *
+     * @param array $post The submitted record
+     * @return array Errors keyed by field, in Input::setErrors() format (empty if valid)
+     */
+    private function validateDnsInput(array $post)
+    {
+        $errors = [];
+        $types = Configure::get('Namesilo.dns_records')['record_type']['options'] ?? [];
+        $type = $post['record_type'] ?? '';
+        // Also checked on update, where the type is not sent: the edit form is built for these types only
+        // (e.g. it keeps an MX priority but has no SRV priority), so the views show Edit for them alone
+        if (!is_string($type) || $type === '' || !array_key_exists($type, $types)) {
+            $errors['record_type'] = ['required' => Language::_('Namesilo.!error.dns_record_type.required', true)];
+        }
+
+        // A quoted TXT value can decode to nothing ('""') or, through \DDD escapes, to any byte
+        $value = $this->dnsValueFromPost($post);
+        if ($value === '') {
+            $errors['value'] = ['empty' => Language::_('Namesilo.!error.dns_value.empty', true)];
+        } elseif (preg_match('/[^\x09\x20-\x7E]/', $value)) {
+            $errors['value'] = ['ascii' => Language::_('Namesilo.!error.dns_value.ascii', true)];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Fetches the DNS records for a domain in a consistent format
+     *
+     * @param NamesiloDomainsDns $dns The NameSilo DNS API command object
+     * @param string $domain The domain to fetch records for
+     * @param NamesiloApi|null $api The API object, to log the request and set an error when it fails
+     *  (otherwise a failed request is treated as no records)
+     * @return array A list of records, each including an "edit_host" key holding the host relative to the domain
+     */
+    private function getDnsRecords(NamesiloDomainsDns $dns, $domain, NamesiloApi $api = null)
+    {
+        $response = $dns->dnsListRecords(['domain' => $domain]);
+        if ($api) {
+            $this->processResponse($api, $response);
+        }
+        $records = $response->response(true);
+
+        // Get a consistent format because XML parsing in PHP is inconsistent
+        if (isset($records['resource_record']) && !is_array($records['resource_record'])) {
+            $records['resource_record'] = (array) $records['resource_record'];
+        } elseif (!isset($records['resource_record'])) {
+            $records['resource_record'] = [];
+        }
+
+        // We are expecting a multidimensional array
+        if ($this->isMultiArray($records['resource_record']) === false) {
+            $records['resource_record'] = [0 => $records['resource_record']];
+        }
+
+        // Relative host used to pre-fill the edit form
+        foreach ($records['resource_record'] as &$record) {
+            if (is_array($record)) {
+                $record['edit_host'] = $this->normalizeDnsHost($record['host'] ?? '', $domain);
+            }
+        }
+        unset($record);
+
+        return $records['resource_record'];
+    }
+
+    /**
+     * Builds a standard BIND zone file (RFC 1035 section 5 master file format) from NameSilo DNS records
+     *
+     * @param string $domain The domain the records belong to
+     * @param array $records A list of records as returned by getDnsRecords()
+     * @return string The zone file contents
+     */
+    private function buildZoneFile($domain, array $records)
+    {
+        $lines = [
+            '; Zone file for ' . $domain,
+            '; Exported ' . gmdate('Y-m-d H:i:s') . ' UTC from NameSilo DNS',
+            '; SOA and NS records are managed by NameSilo and are not included',
+            '$ORIGIN ' . $domain . '.',
+            '$TTL 7207',
+            '',
+        ];
+
+        foreach ($records as $record) {
+            if (!is_array($record) || empty($record['type'])) {
+                continue;
+            }
+
+            $type = strtoupper($record['type']);
+            $host = $this->normalizeDnsHost($record['host'] ?? '', $domain);
+            $value = (string) ($record['value'] ?? '');
+
+            switch ($type) {
+                case 'A':
+                case 'AAAA':
+                    $data = $value;
+                    break;
+                case 'CNAME':
+                    $data = $this->toAbsoluteDnsName($value, $domain);
+                    break;
+                case 'MX':
+                    $data = (int) ($record['distance'] ?? 0) . ' ' . $this->toAbsoluteDnsName($value, $domain);
+                    break;
+                case 'TXT':
+                    $data = $this->quoteTxtValue($value);
+                    break;
+                case 'SRV':
+                    // NameSilo uses "weight:port:target" with the priority as the distance; the target host
+                    // must be fully-qualified
+                    $parts = $this->splitDnsValue($value);
+                    $parts[] = $this->toAbsoluteDnsName(array_pop($parts), $domain);
+                    $lines[] = '; SRV record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = (int) ($record['distance'] ?? 0) . ' ' . implode(' ', $parts);
+                    break;
+                case 'CAA':
+                    // NameSilo uses "flag:tag:value"; zone files quote the value (RFC 8659 section 4.1.1)
+                    $parts = array_pad($this->splitDnsValue($value), 3, '');
+                    $lines[] = '; CAA record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = (int) $parts[0] . ' ' . $parts[1] . ' "' . addcslashes(trim($parts[2], '"'), '"\\') . '"';
+                    break;
+                default:
+                    $lines[] = '; ' . $type
+                        . ' record exported as listed by NameSilo, check it before importing elsewhere';
+                    $data = trim(
+                        (isset($record['distance']) && $record['distance'] != 0 ? $record['distance'] . ' ' : '')
+                        . $value
+                    );
+            }
+
+            $name = $host === '' ? '@' : $host;
+            $lines[] = implode("\t", [$name, (int) ($record['ttl'] ?? 7207), 'IN', $type, $data]);
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Splits a NameSilo SRV/CAA value into its three parts. NameSilo documents these as "X:Y:Z"
+     * (SRV weight:port:target, CAA flag:tag:value); space-separated values are also accepted. Only the
+     * first two separators split, so a CAA value such as "mailto:admin@example.com" stays intact.
+     *
+     * @param string $value The value as listed by NameSilo
+     * @return array The parts of the value
+     */
+    private function splitDnsValue($value)
+    {
+        $value = trim($value);
+
+        return preg_match('/\s/', $value) ? preg_split('/\s+/', $value, 3) : explode(':', $value, 3);
+    }
+
+    /**
+     * Converts a host name into a fully-qualified zone file name (with a trailing dot)
+     *
+     * @param string $name The host name, e.g. "mail.example.com" or "@"
+     * @param string $domain The domain the record belongs to
+     * @return string The fully-qualified name, e.g. "mail.example.com."
+     */
+    private function toAbsoluteDnsName($name, $domain)
+    {
+        $name = trim($name);
+
+        if ($name === '' || $name === '@') {
+            return $domain . '.';
+        }
+
+        return substr($name, -1) === '.' ? $name : $name . '.';
+    }
+
+    /**
+     * Formats a raw TXT value as one or more quoted zone file character-strings (RFC 1035 sections 3.3 and 5.1),
+     * splitting values longer than 255 bytes and escaping quotes, backslashes and non-printable bytes
+     *
+     * @param string $value The raw TXT value
+     * @return string The quoted value, e.g. "v=spf1 ~all"
+     */
+    private function quoteTxtValue($value)
+    {
+        if ($value === '') {
+            return '""';
+        }
+
+        $strings = [];
+        foreach (str_split($value, 255) as $chunk) {
+            $strings[] = '"' . preg_replace_callback(
+                '/[\\\\"]|[^\x20-\x7e]/',
+                function ($char) {
+                    return in_array($char[0], ['\\', '"']) ? '\\' . $char[0] : sprintf('\\%03d', ord($char[0]));
+                },
+                $chunk
+            ) . '"';
+        }
+
+        return implode(' ', $strings);
+    }
+
+    /**
+     * Returns the record value to send to NameSilo from the submitted record
+     *
+     * @param array $post The submitted record
+     * @return string The value, with a TXT value converted by normalizeTxtValue()
+     */
+    private function dnsValueFromPost(array $post)
+    {
+        // The value is entered in a textarea; a line break is never valid inside a record value, and
+        // wrapped SPF/DKIM values stay valid when their lines are joined with a space
+        $value = is_string($post['value'] ?? null) ? $post['value'] : '';
+        $value = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', $value));
+
+        return ($post['record_type'] ?? '') === 'TXT' ? $this->normalizeTxtValue($value) : $value;
+    }
+
     private function getDnsFields($post, $fields)
     {
+        $record_type = $post['record_type'] ?? '';
+
         $dns_fields = [
             'domain' => $fields->domain,
-            'rrtype' => $post['record_type'],
-            'rrhost' => $post['host'],
-            'rrvalue' => $post['value'],
-            'rrttl' => $post['ttl'],
+            'rrtype' => $record_type,
+            'rrhost' => $this->normalizeDnsHost($post['host'] ?? '', $fields->domain),
+            'rrvalue' => $this->dnsValueFromPost($post),
+            'rrttl' => trim($post['ttl'] ?? ''),
         ];
         if (isset($post['record_id']) && !empty($post['record_id'])) {
+            // dnsUpdateRecord identifies the record by rrid and does not accept a type change
             $dns_fields['rrid'] = $post['record_id'];
+            unset($dns_fields['rrtype']);
         }
-        if (isset($post['distance']) && !empty($post['distance']) && $post['record_type'] == 'MX') {
-            $dns_fields['rrdistance'] = $post['distance'];
+        // Priority 0 is valid for MX, and NameSilo applies a default of 10 when rrdistance is omitted
+        if ($record_type == 'MX' && isset($post['distance']) && trim($post['distance']) !== '') {
+            $dns_fields['rrdistance'] = trim($post['distance']);
         }
 
         return $dns_fields;
+    }
+
+    /**
+     * Converts a TXT value written in zone-file syntax into the raw value NameSilo expects.
+     * NameSilo stores quotes literally, so '"v=spf1 ~all"' would publish a record that begins
+     * with a quote character and is ignored by SPF/DKIM checkers (RFC 1035 section 5.1 quotes
+     * are delimiters, not data). Only values made up entirely of quoted strings are changed:
+     * '"a" "b"' becomes 'ab' (split DKIM keys) and \" / \\ / \DDD escapes are decoded.
+     * Anything else, e.g. 'say "hi"', is left as entered.
+     *
+     * @param string $value The TXT value as entered
+     * @return string The TXT value to send to the API
+     */
+    private function normalizeTxtValue($value)
+    {
+        $value = trim($value);
+        $string = '"(?:[^"\\\\]|\\\\.)*"';
+
+        if (!preg_match('/^' . $string . '(?:\s+' . $string . ')*$/s', $value)) {
+            return $value;
+        }
+
+        preg_match_all('/"((?:[^"\\\\]|\\\\.)*)"/s', $value, $matches);
+
+        return preg_replace_callback(
+            '/\\\\(\d{3}|.)/s',
+            function ($escape) {
+                return strlen($escape[1]) === 3 ? chr((int) $escape[1] % 256) : $escape[1];
+            },
+            implode('', $matches[1])
+        );
+    }
+
+    /**
+     * Converts a DNS host as entered or as listed by NameSilo into the relative form the API expects
+     * (e.g. "@", "example.com" and "" all mean the domain apex; "www.example.com" becomes "www")
+     *
+     * @param string $host The host to normalize
+     * @param string $domain The domain the record belongs to
+     * @return string The host relative to the domain, or an empty string for the apex
+     */
+    private function normalizeDnsHost($host, $domain)
+    {
+        $host = rtrim(strtolower(trim($host)), '.');
+        $domain = strtolower($domain);
+
+        if ($host === '@' || $host === $domain) {
+            return '';
+        }
+
+        $suffix = '.' . $domain;
+        if (substr($host, -strlen($suffix)) === $suffix) {
+            return substr($host, 0, -strlen($suffix));
+        }
+
+        return $host;
     }
 
     /**
@@ -3361,6 +4545,105 @@ class Namesilo extends RegistrarModule
         }
 
         return true;
+    }
+
+    /**
+     * Verifies that the provided domain name(s) are available for transfer
+     *
+     * Blesta's order form calls this first as a bulk method with an array of domains,
+     * then falls back to one call per domain. No errors are set here, since any error
+     * would be shown on the order form; unavailable and premium domains just return false.
+     *
+     * @param string|array $domain The domain to lookup, or a list of domains to lookup
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return bool|array True if the domain is available for transfer, false otherwise. If a list
+     *  of domains was given, an array keyed by each domain with the same true/false value
+     */
+    public function checkTransferAvailability($domain, $module_row_id = null)
+    {
+        $domains = is_array($domain) ? array_values($domain) : [$domain];
+        $details = $this->getTransferAvailability($domains, $module_row_id);
+
+        $availability = [];
+        foreach ($domains as $index => $name) {
+            $availability[$name] = $details[$index]['available'] && !$details[$index]['premium'];
+        }
+
+        return is_array($domain) ? $availability : reset($availability);
+    }
+
+    /**
+     * Fetches the transfer availability of the given domains from NameSilo
+     *
+     * @param array $domains A list of domains to lookup
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @param bool $set_errors True to set Input errors if the API request fails, false to only log it
+     * @return array A list of results in the same order as $domains, each containing:
+     *
+     *  - available True if NameSilo listed the domain as transferable, false otherwise
+     *  - premium True if NameSilo flagged the domain as premium, false otherwise
+     *  - reason The reason given by NameSilo if the domain cannot be transferred
+     *  - failed True if the API request for this domain failed, false otherwise
+     */
+    private function getTransferAvailability(array $domains, $module_row_id = null, $set_errors = false)
+    {
+        $default = ['available' => false, 'premium' => false, 'reason' => '', 'failed' => true];
+        $results = array_fill(0, count($domains), $default);
+
+        $row = $this->getModuleRow($module_row_id);
+        if (!$row) {
+            return $results;
+        }
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $command = new NamesiloDomains($api);
+
+        // NameSilo returns domains in lowercase, so match them case-insensitively
+        $normalized = [];
+        foreach ($domains as $index => $domain) {
+            $normalized[$index] = strtolower(trim((string) $domain));
+        }
+
+        // The API accepts up to 200 domains per request
+        foreach (array_chunk($normalized, 200, true) as $chunk) {
+            $result = $command->checkTransfer(['domains' => implode(',', array_unique($chunk))]);
+            if ($set_errors) {
+                $this->processResponse($api, $result);
+            } else {
+                $this->logRequest($api, $result);
+            }
+
+            $responseXML = $result->responseXML();
+            if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail' || !$responseXML) {
+                continue;
+            }
+
+            // Collect the transferable domains and the reasons the others are not
+            $available = [];
+            foreach (($responseXML->xpath('//available/domain') ?: []) as $element) {
+                $attributes = $element->attributes();
+                $available[strtolower(trim((string) $element))] = isset($attributes->premium)
+                    && $attributes->premium == '1';
+            }
+
+            $reasons = [];
+            foreach (($responseXML->xpath('//unavailable/domain') ?: []) as $element) {
+                $attributes = $element->attributes();
+                $reasons[strtolower(trim((string) $element))] = isset($attributes->reason)
+                    ? (string) $attributes->reason
+                    : '';
+            }
+
+            foreach ($chunk as $index => $domain) {
+                $results[$index] = [
+                    'available' => array_key_exists($domain, $available),
+                    'premium' => $available[$domain] ?? false,
+                    'reason' => $reasons[$domain] ?? '',
+                    'failed' => false
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -3579,8 +4862,11 @@ class Namesilo extends RegistrarModule
                         continue;
                     }
 
+                    // NameSilo's registration price is only for the first year (it is often a
+                    // promotional rate); any additional years of a multi-year registration are
+                    // charged at the renewal price
                     $tld_yearly_prices[$tld][$currency][$years] = [
-                        'register' => $prices->registration * $years,
+                        'register' => $prices->registration + $prices->renew * ($years - 1),
                         'transfer' => $prices->transfer * $years,
                         'renew' => $prices->renew * $years
                     ];
@@ -3972,7 +5258,12 @@ class Namesilo extends RegistrarModule
         );
 
         if ($cache) {
-            $result = safe_unserialize(base64_decode($cache));
+            // Stored as JSON: Blesta's safe_unserialize() refuses objects, so a serialized
+            // response came back as __PHP_Incomplete_Class and left the prices empty
+            $cached_result = json_decode(base64_decode($cache));
+            if (isset($cached_result->detail) && $cached_result->detail == 'success') {
+                $result = $cached_result;
+            }
         }
 
         Loader::loadModels($this, ['Currencies']);
@@ -3994,7 +5285,7 @@ class Namesilo extends RegistrarModule
                 try {
                     Cache::writeCache(
                         'tlds_prices',
-                        base64_encode(serialize($result)),
+                        base64_encode(json_encode($result)),
                         strtotime(Configure::get('Blesta.cache_length')) - time(),
                         Configure::get('Blesta.company_id') . DS . 'modules' . DS . 'namesilo' . DS
                     );

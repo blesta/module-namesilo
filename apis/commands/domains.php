@@ -50,11 +50,14 @@ class NamesiloDomains
     /**
      * Registers a new domain name.
      *
+     * @param array $vars An array of input params, including an optional 'auto_renew' (defaults to 0,
+     *  i.e. off, when not provided)
+     *
      * https://www.namesilo.com/api_reference.php#registerDomain
      */
     public function create(array $vars)
     {
-        return $this->api->submit('registerDomain', array_merge($vars, ['auto_renew' => 0]));
+        return $this->api->submit('registerDomain', array_merge(['auto_renew' => 0], $vars));
     }
 
     /**
@@ -134,6 +137,21 @@ class NamesiloDomains
     public function check(array $vars)
     {
         return $this->api->submit('checkRegisterAvailability', $vars);
+    }
+
+    /**
+     * Checks the availability of a domain name for transfer.
+     *
+     * @param array $vars An array of input params including:
+     *
+     *  - domains A comma-delimited list of domains to check (up to 200)
+     * @return NamesiloResponse
+     *
+     * https://www.namesilo.com/api_reference.php#checkTransferAvailability
+     */
+    public function checkTransfer(array $vars)
+    {
+        return $this->api->submit('checkTransferAvailability', $vars);
     }
 
     /**

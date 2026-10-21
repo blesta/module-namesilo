@@ -11,16 +11,18 @@
                         <thead>
                             <tr>
                                 <th><?php $this->_('Namesilo.tab_domain_forwarding.field_domain'); ?></th>
-                                <th><?php $this->_('Namesilo.tab_domain_forwarding.field_forward_to'); ?></th>
+                                <th class="w-50"><?php $this->_('Namesilo.tab_domain_forwarding.field_forward_to'); ?></th>
                                 <th><?php $this->_('Namesilo.tab_domain_forwarding.field_http_type'); ?></th>
                             </tr>
                         </thead>
 
                         <tbody>
                             <tr>
-                                <td><?php echo $domain; ?></td>
-                                <td><?php $this->Form->fieldText('forward_to', $active_forward_url); ?></td>
-                                <td><?php $this->Form->fieldSelect('forward_method', $forward_method, $active_forward_method); ?></td>
+                                <td class="align-middle text-nowrap"><?php echo $this->Html->safe($domain ?? ''); ?></td>
+                                <td><?php $this->Form->fieldText('forward_to', $active_forward_url ?? null, ['class' => 'form-control']); ?></td>
+                                <td><?php $this->Form->fieldSelect('forward_method', $forward_method, $active_forward_method ?? null, [
+                                    'class' => 'form-control',
+                                ]); ?></td>
                             </tr>
                         </tbody>
                     </table>

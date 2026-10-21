@@ -19,9 +19,9 @@
                 <tbody>
                     <?php foreach ($vars->records ?? [] as $record) { ?>
                         <tr>
-                            <td><?php echo $this->Html->safe($record->key_tag ?? null); ?></td>
+                            <td><?php echo $this->Html->safe($record->keyTag ?? null); ?></td>
                             <td><?php echo $this->Html->safe($record->algorithm ?? null); ?></td>
-                            <td><?php echo $this->Html->safe($record->digest_type ?? null); ?></td>
+                            <td><?php echo $this->Html->safe($record->digestType ?? null); ?></td>
                             <td style="word-wrap:break-word; overflow-wrap: break-word; word-break: break-word;"><?php echo $this->Html->safe($record->digest ?? null); ?></td>
                             <td>
                                 <?php
@@ -33,14 +33,14 @@
                                 );
 
                                 $this->Form->fieldHidden('digest', isset($record->digest) ? $record->digest : null);
-                                $this->Form->fieldHidden('key_tag', isset($record->key_tag) ? $record->key_tag : null);
+                                $this->Form->fieldHidden('keyTag', isset($record->keyTag) ? $record->keyTag : null);
                                 $this->Form->fieldHidden(
                                     'algorithm',
                                     isset($record->algorithm) ? $record->algorithm : null,
                                 );
                                 $this->Form->fieldHidden(
-                                    'digest_type',
-                                    isset($record->digest_type) ? $record->digest_type : null,
+                                    'digestType',
+                                    isset($record->digestType) ? $record->digestType : null,
                                 );
 
                                 $button_attributes = [
@@ -71,7 +71,7 @@
             <div class="form-group">
                 <label><?php
                 $this->_('Namesilo.dnssec.key_tag');
-                $this->Form->fieldText('key_tag', null, ['class' => 'form-control short']);
+                $this->Form->fieldText('keyTag', null, ['class' => 'form-control short']);
                 ?></label>
                 <label><?php
                 $this->_('Namesilo.dnssec.algorithm');
@@ -81,7 +81,7 @@
                 ?></label>
                 <label><?php
                 $this->_('Namesilo.dnssec.digest_type');
-                $this->Form->fieldSelect('digest_type', $vars->selects['digest_type']['options'], null, [
+                $this->Form->fieldSelect('digestType', $vars->selects['digest_type']['options'], null, [
                     'class' => 'form-control',
                 ]);
                 ?></label>

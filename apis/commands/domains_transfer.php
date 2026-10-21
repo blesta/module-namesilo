@@ -36,6 +36,8 @@ class NamesiloDomainsTransfer
      *  - PromotionCode Promotional (coupon) code for transfer
      *  - AddFreeWhoisguard Adds free Whoisguard for the domain
      *  - WGEnable Promotional (coupon) code for transfer
+     *  - auto_renew (optional) Whether to auto-renew the domain after transfer (defaults to 0, i.e. off,
+     *      when not provided)
      * @return NamesiloResponse
      *
      * https://www.namesilo.com/api_reference.php#transferDomain
@@ -43,9 +45,9 @@ class NamesiloDomainsTransfer
     public function create(array $vars)
     {
         if (isset($vars['auth'])) {
-            $vars['auth'] = urlencode($vars['auth']);
+            $vars['auth'] = 'base64:' . base64_encode(trim($vars['auth']));
         }
-        return $this->api->submit('transferDomain', array_merge($vars, ['auto_renew' => 0]));
+        return $this->api->submit('transferDomain', array_merge(['auto_renew' => 0], $vars));
     }
 
     /**
@@ -90,6 +92,10 @@ class NamesiloDomainsTransfer
      */
     public function updateEpp(array $vars)
     {
+        if (isset($vars['auth'])) {
+            $vars['auth'] = 'base64:' . base64_encode(trim($vars['auth']));
+        }
+
         return $this->api->submit('transferUpdateChangeEPPCode', $vars);
     }
 

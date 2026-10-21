@@ -39,6 +39,12 @@ $lang['Namesilo.row_meta.portfolio'] = 'Portfolio';
 $lang['Namesilo.row_meta.payment_id'] = 'Payment ID';
 $lang['Namesilo.row_meta.payment_id.description'] = 'Leave blank to use account funds or enter the ID of a billing profile that is <strong>verified</strong> in your Namesilo account to use it for purchases.  You can get this ID from';
 $lang['Namesilo.row_meta.sandbox'] = 'Sandbox';
+$lang['Namesilo.row_meta.client_contacts'] = 'Clients can manage WHOIS contacts';
+$lang['Namesilo.row_meta.client_contacts.description'] = 'Shows the Whois and Manage Contacts tabs to clients. In the Whois tab, clients edit the domain\'s contact details; a contact that isn\'t one of their own, such as your account\'s contact profile, is never changed: a new contact with their details is created for the domain instead.';
+$lang['Namesilo.row_meta.auto_renew_new'] = 'Turn on auto-renew for new registrations and transfers';
+$lang['Namesilo.row_meta.auto_renew_new.description'] = 'When enabled, newly registered and transferred-in domains are set to auto-renew at NameSilo. Leave off to keep the current behavior of registering and transferring domains without auto-renew.';
+$lang['Namesilo.row_meta.use_account_contact'] = 'Register new domains with the NameSilo account\'s default contact';
+$lang['Namesilo.row_meta.use_account_contact.description'] = 'When enabled, WHOIS contact information is not sent for new registrations, so NameSilo uses your account\'s default contact profile instead of creating a new contact from the client\'s Blesta profile. That shared contact is not added to the client\'s contact list. Clients with a default contact set in Manage Contacts are still registered with that contact. .us domains use the .us nexus details on your default contact profile. This does not apply to .ca domains, which always use their own special contact.';
 $lang['Namesilo.row_meta.sandbox_true'] = 'Yes';
 $lang['Namesilo.row_meta.sandbox_false'] = 'No';
 
@@ -73,6 +79,8 @@ $lang['Namesilo.tab_whois.section_technical'] = 'Technical';
 $lang['Namesilo.tab_whois.section_billing'] = 'Billing';
 $lang['Namesilo.tab_whois.field_submit'] = 'Update Whois';
 $lang['Namesilo.tab_whois.copy_registrant_info'] = 'Copy Registrant Info';
+$lang['Namesilo.tab_client_whois.description'] = 'These are the contact details registered for this domain. If a contact is one of your saved contacts, your changes update it on every domain that uses it. Otherwise a new contact is created for this domain with the details you enter.';
+$lang['Namesilo.tab_client_whois.field_same_as_registrant'] = 'Same as registrant';
 
 $lang['Namesilo.tab_manage_contacts.title'] = 'Manage Contacts';
 $lang['Namesilo.tab_manage_contacts.heading_contact_id'] = 'Contact ID';
@@ -99,6 +107,8 @@ $lang['Namesilo.tab_email_forwarding.field_email_address'] = 'Email Address';
 $lang['Namesilo.tab_email_forwarding.field_forward_to'] = 'Forward To';
 $lang['Namesilo.tab_email_forwarding.field_delete'] = 'Delete';
 $lang['Namesilo.tab_email_forwarding.field_submit'] = 'Update Forwarders';
+$lang['Namesilo.!error.email_forwarding.max_forwards'] = 'Email forwarding supports a maximum of 5 forwarding addresses per email.';
+$lang['Namesilo.!error.email_forwarding.new_email_to_empty'] = 'Please enter an address to forward the new email to.';
 
 $lang['Namesilo.tab_nameservers.title'] = 'Name Servers';
 $lang['Namesilo.tab_nameservers.desc'] = 'We allow up to 5 possible name servers, although only 2 are required. It is important that you do not enter the IP address of the name server, but instead enter the actual name server name. Name servers are typically formatted like "NS1.host.com".';
@@ -147,7 +157,18 @@ $lang['Namesilo.tab_dnsrecord.title_list'] = 'Current DNS Records';
 $lang['Namesilo.tab_dnsrecord.title_add'] = 'Add a DNS Record';
 $lang['Namesilo.tab_dnsrecord.field_delete'] = 'Delete Record(s)';
 $lang['Namesilo.tab_dnsrecord.field_add'] = 'Add Record';
-$lang['Namesilo.tab_dnsrecord.help_text_1'] = 'On this page you can add or delete A, AAAA, CNAME, MX and TXT DNS records. Please be ware that it might take some few minutes for DNS records to propagate. <br/> To have any of these changes reflect on your domain name you must set name servers to:<br />NS1.DNSOWL.COM<br />NS2.DNSOWL.COM<br />NS3.DNSOWL.COM';
+$lang['Namesilo.tab_dnsrecord.title_edit'] = 'Edit DNS Record';
+$lang['Namesilo.tab_dnsrecord.field_edit'] = 'Edit';
+$lang['Namesilo.tab_dnsrecord.field_save'] = 'Save Record';
+$lang['Namesilo.tab_dnsrecord.field_cancel'] = 'Cancel';
+$lang['Namesilo.tab_dnsrecord.field_export'] = 'Export Zone File';
+$lang['Namesilo.tab_dnsrecord.title_delete'] = 'Delete DNS Record';
+$lang['Namesilo.tab_dnsrecord.confirm_delete'] = 'Delete the %1$s record for %2$s with the value %3$s? If this record is used by domain or email forwarding, the forwarding will stop working.';
+$lang['Namesilo.tab_dnsrecord.title_confirm_edit'] = 'Confirm DNS Record Change';
+$lang['Namesilo.tab_dnsrecord.confirm_edit'] = 'Change the %1$s record for %2$s:';
+$lang['Namesilo.tab_dnsrecord.confirm_edit_change'] = '%1$s from %2$s to %3$s';
+$lang['Namesilo.tab_dnsrecord.text_empty'] = '(empty)';
+$lang['Namesilo.tab_dnsrecord.help_text_1'] = 'On this page you can add, edit or delete A, AAAA, CNAME, MX and TXT DNS records. Changes may take a few minutes to propagate. <br/> These records only take effect while your domain uses the following name servers:<br />NS1.DNSOWL.COM<br />NS2.DNSOWL.COM<br />NS3.DNSOWL.COM';
 
 $lang['Namesilo.dnsrecord.record_type'] = 'Type';
 $lang['Namesilo.dnsrecord.host'] = 'Host';
@@ -155,6 +176,7 @@ $lang['Namesilo.dnsrecord.value'] = 'Value';
 $lang['Namesilo.dnsrecord.distance'] = 'Priority';
 $lang['Namesilo.dnsrecord.ttl'] = 'TTL';
 $lang['Namesilo.dnsrecord.field_delete'] = 'Delete Record(s)';
+$lang['Namesilo.dnsrecord.field_actions'] = 'Actions';
 
 $lang['Namesilo.dns_records.record_type'] = 'Record Type';
 $lang['Namesilo.dns_records.record_type.a_record'] = 'A Record';
@@ -197,10 +219,21 @@ $lang['Namesilo.!error.key.valid'] = 'Please enter a key';
 $lang['Namesilo.!error.key.valid_connection'] = 'The user and key combination appear to be invalid, or your NameSilo account may not be configured to allow API access.';
 $lang['Namesilo.!error.portfolio.valid_portfolio'] = 'The portfolio entered does not appear valid.  Are you sure it has been created in your NameSilo account?';
 $lang['Namesilo.!error.payment_id.valid_format'] = 'Payment ID must be either blank or numeric only.';
+$lang['Namesilo.!error.dns_record_type.required'] = 'Please select a record type.';
+$lang['Namesilo.!error.dns_value.empty'] = 'Please enter a value for the record.';
+$lang['Namesilo.!error.dns_value.ascii'] = 'The value contains characters NameSilo does not accept, such as curly quotes, long dashes or accented letters. Please use plain text.';
+$lang['Namesilo.!error.dns_value.duplicate_spf'] = 'This domain already has an SPF record at %1$s: "%2$s". A domain can have only one SPF record; with two, SPF checks fail for all of its email (RFC 7208). Edit the existing record and add to it (for example, another include:) instead of adding a second one.';
+$lang['Namesilo.!error.dns_value.duplicate_dmarc'] = 'There is already a DMARC record at %1$s: "%2$s". With two DMARC records, email providers ignore DMARC entirely (RFC 7489). Edit the existing record instead.';
+$lang['Namesilo.!error.dns_value.duplicate_dkim'] = 'There is already a DKIM key at %1$s: "%2$s". A DKIM selector can have only one key (RFC 6376). Edit the existing record, or use a different selector name.';
+$lang['Namesilo.!error.dns_value.dmarc_host'] = 'A DMARC record only works at the host _dmarc (%1$s). Set the Host to _dmarc.';
+$lang['Namesilo.!error.dns_value.dkim_host'] = 'A DKIM key only works at a host ending in ._domainkey, such as selector._domainkey.%1$s. Use the host name your email provider gave you.';
+$lang['Namesilo.!error.whois_field.empty'] = '%1$s: please enter the %2$s.'; // %1$s is the contact section (e.g. Registrant), %2$s is the field name
+$lang['Namesilo.!error.contact_not_allowed'] = 'You can only assign your own contacts to this domain.';
 $lang['Namesilo.!error.epp.empty'] = 'Domain transfers require an EPP code to be entered.';
 $lang['Namesilo.!error.premium_domain'] = '%1$s is a premium domain. Please contact us for more information.'; // %1$s is the premium domain;
 $lang['Namesilo.!error.invalid_term'] = 'Invalid number of years, or no years provided.';
 $lang['Namesilo.!error.domain_unavailable'] = 'The domain is not available for registration.';
+$lang['Namesilo.!error.domain_not_transferable'] = 'The domain %1$s cannot be transferred: %2$s'; // %1$s is the domain, %2$s is the reason given by NameSilo
 
 // Notices
 $lang['Namesilo.notice.StatusPending'] = 'This order is pending. The feature you are trying to access will become available once the order has been activated successfully.';
@@ -322,6 +355,10 @@ $lang['Namesilo.domain.EUCountryOfCitizenship.se'] = 'Sweden';
 $lang['Namesilo.!success.packages_saved'] = 'The packages have been successfully saved.';
 $lang['Namesilo.!success.epp_code_sent'] = "The EPP Code/Transfer Key has been sent to the administrative contact for this domain name via email.";
 $lang['Namesilo.!success.contact_deleted'] = "The contact was successfully deleted.";
+$lang['Namesilo.!success.whois_updated'] = 'The contact details have been saved. It may take a few minutes for the change to show at the registry.';
+$lang['Namesilo.!success.dns_record_added'] = 'The DNS record has been added. It may take a few minutes for the change to go live.';
+$lang['Namesilo.!success.dns_record_updated'] = 'The DNS record has been updated. It may take a few minutes for the change to go live.';
+$lang['Namesilo.!success.dns_record_deleted'] = 'The DNS record has been deleted. It may take a few minutes for the change to go live.';
 
 // Errors
 $lang['Namesilo.!error.FRLegalType.format'] = 'Please select a valid Legal Type';
@@ -353,3 +390,5 @@ $lang['Namesilo.!error.EU.EUCountryOfCitizenship.invalid'] = 'Invalid country of
 $lang['Namesilo.!tooltip.upgrades_use_renewal'] = 'When enabled, upgrading to this package will use renewal prices if they are set. The regular price will be used if this setting is disabled.';
 
 require_once __DIR__ . '/notices.php';
+
+$lang['Namesilo.tab_whois.field_contact'] = 'Contact';

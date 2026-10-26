@@ -3332,35 +3332,98 @@ class Namesilo extends RegistrarModule
      */
     public function checkAvailability($domain, $module_row_id = null)
     {
-        $row = $this->getModuleRow($module_row_id);
-        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+        $result = $this->checkDomainsAvailability([$domain], $module_row_id);
 
-        $domains = new NamesiloDomains($api);
-        $result = $domains->check(['domains' => $domain]);
-        $this->processResponse($api, $result);
-
-        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
-            return false;
+        if ($result['availability'][$domain] ?? false) {
+            return true;
         }
 
-        $responseXML = $result->responseXML();
-        $xpath_result = $responseXML->xpath("//available/domain[text()='" . $domain . "']");
-
-        if (empty($xpath_result)) {
-            // The domain was not in the available element, its not available.
-            return false;
-        }
-
-        $attributes = $xpath_result[0]->attributes();
-        if (isset($attributes->premium) && $attributes->premium == '1') {
+        if ($result['premium'][$domain] ?? false) {
             $this->Input->setErrors(
                 ['availability' => ['premium' => Language::_('Namesilo.!error.premium_domain', true, $domain)]]
             );
-
-            return false;
         }
 
-        return true;
+        return false;
+    }
+
+    /**
+     * Checks the availability of multiple domain names at once using a single API call.
+     *
+     * @param array $domains A list of domain names to check
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return array An associative array of domain => boolean (true if available)
+     */
+    public function bulkCheckAvailability($domains, $module_row_id = null)
+    {
+        $result = $this->checkDomainsAvailability($domains, $module_row_id);
+
+        return $result['availability'];
+    }
+
+    /**
+     * Checks domain availability via a single API request.
+     *
+     * @param array $domains A list of domain names to check
+     * @param int $module_row_id The ID of the module row to fetch for the current module
+     * @return array An array with availability and premium flags keyed by domain
+     */
+    private function checkDomainsAvailability(array $domains, $module_row_id = null)
+    {
+        $availability = array_fill_keys($domains, false);
+        $premium = array_fill_keys($domains, false);
+
+        if (empty($domains)) {
+            return [
+                'availability' => $availability,
+                'premium' => $premium,
+            ];
+        }
+
+        $row = $this->getModuleRow($module_row_id);
+        $api = $this->getApi($row->meta->user, $row->meta->key, $row->meta->sandbox == 'true');
+
+        $domainList = implode(',', array_map('strtolower', $domains));
+        $domainsApi = new NamesiloDomains($api);
+        $result = $domainsApi->check(['domains' => $domainList]);
+        $this->processResponse($api, $result);
+
+        if ((self::$codes[$result->status()][1] ?? 'fail') == 'fail') {
+            return [
+                'availability' => $availability,
+                'premium' => $premium,
+            ];
+        }
+
+        $responseXML = $result->responseXML();
+        if (!$responseXML) {
+            return [
+                'availability' => $availability,
+                'premium' => $premium,
+            ];
+        }
+
+        foreach ($domains as $domain) {
+            $lookup = strtolower($domain);
+            $xpath_result = $responseXML->xpath("//available/domain[text()='" . $lookup . "']");
+
+            if (empty($xpath_result)) {
+                continue;
+            }
+
+            $attributes = $xpath_result[0]->attributes();
+            if (isset($attributes->premium) && (string) $attributes->premium === '1') {
+                $premium[$domain] = true;
+                continue;
+            }
+
+            $availability[$domain] = true;
+        }
+
+        return [
+            'availability' => $availability,
+            'premium' => $premium,
+        ];
     }
 
     /**

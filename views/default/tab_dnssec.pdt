@@ -27,10 +27,10 @@
                     <!-- List existing ds records -->
                     <tbody>
                     <tr>
-                        <td><?php echo (isset($record->key_tag) ? $record->key_tag : null); ?></td>
-                        <td><?php echo (isset($record->algorithm) ? $record->algorithm : null); ?></td>
-                        <td><?php echo (isset($record->digest_type) ? $record->digest_type : null); ?></td>
-                        <td><?php echo (isset($record->digest) ? $record->digest : null); ?></td>
+                        <td><?php echo $this->Html->safe(isset($record->key_tag) ? $record->key_tag : null); ?></td>
+                        <td><?php echo $this->Html->safe(isset($record->algorithm) ? $record->algorithm : null); ?></td>
+                        <td><?php echo $this->Html->safe(isset($record->digest_type) ? $record->digest_type : null); ?></td>
+                        <td><?php echo $this->Html->safe(isset($record->digest) ? $record->digest : null); ?></td>
                         <td>
                             <?php
                             $this->Form->create($this->base_uri . 'clients/servicetab/' . (isset($client_id) ? $client_id : null) . '/' . (isset($service_id) ? $service_id : null) . '/tabDnssec/');

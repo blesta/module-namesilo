@@ -1,39 +1,33 @@
-    <div class="title_row first">
-        <h3><?php $this->_('Namesilo.tab_domain_forwarding.title'); ?></h3>
+<?php /** @var View $this */ ?>
+<?php $this->Form->create(); ?>
+
+<div>
+    <h6 class="form-section-header mb-3"><?php $this->_('Namesilo.tab_domain_forwarding.title'); ?></h6>
+    
+    <p><?php $this->_('Namesilo.tab_domain_forwarding.desc'); ?></p>
+    
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th><?php $this->_('Namesilo.tab_domain_forwarding.field_domain'); ?></th>
+                    <th><?php $this->_('Namesilo.tab_domain_forwarding.field_forward_to'); ?></th>
+                    <th><?php $this->_('Namesilo.tab_domain_forwarding.field_http_type'); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="align-middle"><?php echo $domain; ?></td>
+                    <td><?php $this->Form->fieldText('forward_to', $active_forward_url, ['class' => 'form-control']); ?></td>
+                    <td><?php $this->Form->fieldSelect('forward_method', $forward_method, $active_forward_method, ['class' => 'form-select']); ?></td>
+                </tr>
+            </tbody>
+        </table>
     </div>
+</div>
 
+<div class="card-footer text-end">
+    <?php $this->Form->fieldSubmit('submit', $this->_('Namesilo.tab_domain_forwarding.field_submit', true), ['class' => 'btn btn-primary']); ?>
+</div>
 
-    <?php
-    $this->Form->create();
-    ?>
-        <div class="pad">
-            <ul>
-                <li>
-                    <p><?php $this->_('Namesilo.tab_domain_forwarding.desc'); ?></p>
-                </li>
-                <li>
-                    <table class="table">
-                        <thead>
-                            <tr class="heading_row">
-                                <td><?php $this->_('Namesilo.tab_domain_forwarding.field_domain'); ?></td>
-                                <td><?php $this->_('Namesilo.tab_domain_forwarding.field_forward_to'); ?></td>
-                                <td><?php $this->_('Namesilo.tab_domain_forwarding.field_http_type'); ?></td>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            <tr>
-                                <td><?php echo $domain; ?></td>
-                                <td><?php $this->Form->fieldText('forward_to', $active_forward_url); ?></td>
-                                <td><?php $this->Form->fieldSelect('forward_method', $forward_method, $active_forward_method); ?></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </li>
-            </ul>
-        </div>
-        <div class="button_row"><a class="btn btn-primary float-right submit" href="#"><?php $this->_('Namesilo.tab_domain_forwarding.field_submit'); ?></a></div>
-    <?php
-    $this->Form->end();
-    ?>
-
+<?php $this->Form->end(); ?>

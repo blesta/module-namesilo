@@ -348,6 +348,7 @@ $lang['Namesilo.!error.CA.CIRALanaguage.invalid'] = 'Invalid language submitted.
 $lang['Namesilo.!error.CA.CIRALegalType.other'] = 'Only individual legal types may be processed automatically.  Please contact us for more information.';
 $lang['Namesilo.!error.EU.EUCountryOfCitizenship.empty'] = 'Please select a country of citizenship.';
 $lang['Namesilo.!error.EU.EUCountryOfCitizenship.invalid'] = 'Invalid country of citizenship submitted.';
+$lang['Namesilo.!error.contact_lookup_failed'] = 'Unable to retrieve the contact details from NameSilo. Please try again later.';
 
 // Tooltips
 $lang['Namesilo.!tooltip.upgrades_use_renewal'] = 'When enabled, upgrading to this package will use renewal prices if they are set. The regular price will be used if this setting is disabled.';

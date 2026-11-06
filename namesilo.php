@@ -2419,6 +2419,12 @@ class Namesilo extends RegistrarModule
 
         $response = $domains->getContacts(['contact_id' => $contact_id]);
         if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
+            $result = $response->response();
+            $message = $result->detail
+                ?? (self::$codes[$response->status()][0] ?? null)
+                ?? Language::_('Namesilo.!error.contact_lookup_failed', true);
+
+            $this->Input->setErrors(['errors' => ['contact' => $message]]);
             return false;
         }
 
@@ -2478,6 +2484,12 @@ class Namesilo extends RegistrarModule
 
         // Make sure a user only edits their own contact
         if (!array_key_exists($post['contact_id'] ?? $get['contact_id'], $contacts)) {
+            $result = $response->response();
+            $message = $result->detail
+                ?? (self::$codes[$response->status()][0] ?? null)
+                ?? Language::_('Namesilo.!error.contact_lookup_failed', true);
+
+            $this->Input->setErrors(['errors' => ['contact' => $message]]);
             return;
         }
 

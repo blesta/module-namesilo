@@ -3790,28 +3790,7 @@ class Namesilo extends RegistrarModule
      */
     private function getTld($domain, $row = null)
     {
-        if ($row == null) {
-            $row = $this->getRow();
-        }
-
-        if ($row == null) {
-            $row = $this->getRow();
-        }
-
-        $tlds = (array) $this->getTlds();
-        // Check the longest TLDs first so the most specific one matches, e.g. .org.uk before .uk
-        usort($tlds, function ($a, $b) {
-            return strlen($b) - strlen($a);
-        });
-        $domain = strtolower($domain);
-
-        foreach ($tlds as $tld) {
-            if (substr($domain, -strlen($tld)) == $tld) {
-                return $tld;
-            }
-        }
-
-        return strstr($domain, '.');
+        return $this->findTld($domain);
     }
 
     /**

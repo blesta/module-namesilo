@@ -3790,24 +3790,7 @@ class Namesilo extends RegistrarModule
      */
     private function getTld($domain, $row = null)
     {
-        if ($row == null) {
-            $row = $this->getRow();
-        }
-
-        if ($row == null) {
-            $row = $this->getRow();
-        }
-
-        $tlds = $this->getTlds();
-        $domain = strtolower($domain);
-
-        foreach ($tlds as $tld) {
-            if (substr($domain, -strlen($tld)) == $tld) {
-                return $tld;
-            }
-        }
-
-        return strstr($domain, '.');
+        return $this->findTld($domain);
     }
 
     /**

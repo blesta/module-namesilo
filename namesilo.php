@@ -674,6 +674,9 @@ class Namesilo extends RegistrarModule
                 if (!isset($this->Contacts)) {
                     Loader::loadModels($this, ['Contacts']);
                 }
+                if (!isset($this->States)) {
+                    Loader::loadModels($this, ['States']);
+                }
 
                 $client = $this->Clients->get($vars['client_id']);
 
@@ -688,6 +691,10 @@ class Namesilo extends RegistrarModule
                             isset($contact_numbers[0]) ? $contact_numbers[0]->number : null,
                             $client->country
                         );
+                    } elseif ($key == 'state' && !in_array($client->country, ['US', 'CA'])) {
+                        // Outside US/CA, Namesilo requires the state name instead of the ISO 3166-2 code
+                        $state = $this->States->get($client->country, $client->state);
+                        $vars[$value['rp']] = $state->name ?? $client->state;
                     } else {
                         $vars[$value['rp']] =
                             (isset($value['lp']) && !empty($value['lp'])) ? $client->{$value['lp']} : 'NA';
@@ -3824,14 +3831,15 @@ class Namesilo extends RegistrarModule
         }
 
         $phone = $this->Contacts->intlNumber($number, $country, '.');
-        $phone_parts = explode('.', $phone, 2);
-        $formatted_phone = preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone);
 
-        if (in_array($country, ['US', 'CA'])) {
-            $formatted_phone = substr($formatted_phone, -10);
+        // Outside US/CA, Namesilo requires the +CC.NSN format
+        if (!in_array($country, ['US', 'CA'])) {
+            return $phone;
         }
 
-        return $formatted_phone;
+        $phone_parts = explode('.', $phone, 2);
+
+        return substr(preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone), -10);
     }
 
     /**

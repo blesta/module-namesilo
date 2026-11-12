@@ -674,7 +674,6 @@ class Namesilo extends RegistrarModule
                 if (!isset($this->Contacts)) {
                     Loader::loadModels($this, ['Contacts']);
                 }
-
                 $client = $this->Clients->get($vars['client_id']);
 
                 if ($client) {
@@ -688,6 +687,8 @@ class Namesilo extends RegistrarModule
                             isset($contact_numbers[0]) ? $contact_numbers[0]->number : null,
                             $client->country
                         );
+                    } elseif ($key == 'state') {
+                        $vars[$value['rp']] = $this->formatState($client->state, $client->country);
                     } else {
                         $vars[$value['rp']] =
                             (isset($value['lp']) && !empty($value['lp'])) ? $client->{$value['lp']} : 'NA';
@@ -2422,7 +2423,7 @@ class Namesilo extends RegistrarModule
         }
 
         if (!empty($post)) {
-            $response = $domains->updateContacts($post);
+            $response = $domains->updateContacts($this->formatContactFields($post));
             $this->processResponse($this->api, $response);
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$contact_id] = $post['fn'] . ' ' . $post['ln'];
@@ -2543,7 +2544,7 @@ class Namesilo extends RegistrarModule
         Loader::loadHelpers($this, ['Form', 'Html']);
 
         if (!empty($post)) {
-            $response = $domains->addContacts($post);
+            $response = $domains->addContacts($this->formatContactFields($post));
             $this->processResponse($this->api, $response);
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$response->response()->contact_id] = $post['fn'] . ' ' . $post['ln'];
@@ -3794,11 +3795,12 @@ class Namesilo extends RegistrarModule
     }
 
     /**
-     * Formats a phone number into +NNN.NNNNNNNNNN
+     * Formats a phone number for Namesilo
      *
      * @param string $number The phone number
      * @param string $country The ISO 3166-1 alpha2 country code
-     * @return string The number in +NNN.NNNNNNNNNN
+     * @return string The 10-digit national number for US/CA, +CC.NSN for every other
+     *  country, or an empty string if no number was given
      */
     private function formatPhone($number, $country)
     {
@@ -3806,15 +3808,117 @@ class Namesilo extends RegistrarModule
             Loader::loadModels($this, ['Contacts']);
         }
 
-        $phone = $this->Contacts->intlNumber($number, $country, '.');
-        $phone_parts = explode('.', $phone, 2);
-        $formatted_phone = preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone);
-
-        if (in_array($country, ['US', 'CA'])) {
-            $formatted_phone = substr($formatted_phone, -10);
+        $number = trim((string) $number);
+        if ($number === '') {
+            return '';
         }
 
-        return $formatted_phone;
+        $phone = $this->Contacts->intlNumber($number, $country, '.');
+
+        if (in_array($country, ['US', 'CA'])) {
+            $phone_parts = explode('.', $phone, 2);
+
+            return substr(preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone), -10);
+        }
+
+        // Outside US/CA, Namesilo requires the +CC.NSN format
+        if (preg_match('/^\+[0-9]+\.[0-9]+$/', $phone)) {
+            return $phone;
+        }
+
+        // Contacts::intlNumber() returns the number unformatted when the country has no calling
+        // code, or when the number carries a "+" prefix for a different country. Rebuild +CC.NSN
+        // from the digits, keeping the number's own calling code when it is a recognized one
+        Configure::load('i18');
+        $calling_codes = array_map(
+            function ($code) {
+                return preg_replace('/[^0-9]+/', '', $code);
+            },
+            (array) Configure::get('i18.calling_codes')
+        );
+        $digits = preg_replace('/[^0-9]+/', '', $number);
+        $prefix = $calling_codes[$country] ?? '';
+
+        if (substr($number, 0, 1) == '+') {
+            for ($length = 3; $length >= 1; $length--) {
+                if (in_array(substr($digits, 0, $length), $calling_codes, true)) {
+                    $prefix = substr($digits, 0, $length);
+                    $digits = substr($digits, $length);
+                    break;
+                }
+            }
+        }
+
+        return ($prefix === '' || $digits === '') ? '' : '+' . $prefix . '.' . $digits;
+    }
+
+    /**
+     * Formats the state and phone of a set of Namesilo contact fields
+     *
+     * @param array $fields The contact fields keyed by Namesilo parameter name (st, ph, ct, ...)
+     * @return array The contact fields with st and ph formatted for Namesilo
+     */
+    private function formatContactFields(array $fields)
+    {
+        $country = strtoupper(trim((string) ($fields['ct'] ?? '')));
+        if ($country === '') {
+            return $fields;
+        }
+
+        if (array_key_exists('st', $fields)) {
+            $fields['st'] = $this->formatState($fields['st'], $country);
+        }
+        if (array_key_exists('ph', $fields)) {
+            $fields['ph'] = $this->formatPhone($fields['ph'], $country);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Formats a state/province for Namesilo
+     *
+     * Namesilo accepts alphabetic ISO 3166-2 subdivision codes and plain ASCII state names, but
+     * rejects codes containing digits as well as names containing non-ASCII characters or
+     * punctuation (including the bracketed alternate names in the states table).
+     *
+     * @param string $state The ISO 3166-2 subdivision code, or a state name
+     * @param string $country The ISO 3166-1 alpha2 country code
+     * @return string The state reduced to ASCII letters and spaces; subdivision codes containing
+     *  digits are first resolved to the state name (outside US/CA)
+     */
+    private function formatState($state, $country)
+    {
+        $state = trim((string) $state);
+        $name = $state;
+
+        // Outside US/CA, resolve subdivision codes containing digits to the state name
+        if (!in_array($country, ['US', 'CA']) && preg_match('/[0-9]/', $name)) {
+            if (!isset($this->States)) {
+                Loader::loadModels($this, ['States']);
+            }
+
+            $name = $this->States->get($country, $name)->name ?? $name;
+        }
+
+        // Drop bracketed alternate names, e.g. "Abu Z¸aby [Abu Dhabi]"
+        $name = preg_replace('/\[[^\]]*\]/', '', $name);
+
+        // Transliterate to ASCII
+        if (class_exists('Normalizer')) {
+            $normalized = Normalizer::normalize($name, Normalizer::FORM_D);
+            if ($normalized !== false) {
+                $name = preg_replace('/\p{Mn}+/u', '', $normalized);
+            }
+        }
+        if (function_exists('iconv')) {
+            $name = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: $name;
+        }
+
+        // Keep only letters and spaces
+        $name = trim(preg_replace('/[^A-Za-z]+/', ' ', $name));
+
+        return $name !== '' ? $name : $state;
     }
 
     /**

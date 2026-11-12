@@ -2423,7 +2423,7 @@ class Namesilo extends RegistrarModule
         }
 
         if (!empty($post)) {
-            $response = $domains->updateContacts($post);
+            $response = $domains->updateContacts($this->formatContactFields($post));
             $this->processResponse($this->api, $response);
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$contact_id] = $post['fn'] . ' ' . $post['ln'];
@@ -2544,7 +2544,7 @@ class Namesilo extends RegistrarModule
         Loader::loadHelpers($this, ['Form', 'Html']);
 
         if (!empty($post)) {
-            $response = $domains->addContacts($post);
+            $response = $domains->addContacts($this->formatContactFields($post));
             $this->processResponse($this->api, $response);
             if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$response->response()->contact_id] = $post['fn'] . ' ' . $post['ln'];
@@ -3853,31 +3853,53 @@ class Namesilo extends RegistrarModule
     }
 
     /**
+     * Formats the state and phone of a set of Namesilo contact fields
+     *
+     * @param array $fields The contact fields keyed by Namesilo parameter name (st, ph, ct, ...)
+     * @return array The contact fields with st and ph formatted for Namesilo
+     */
+    private function formatContactFields(array $fields)
+    {
+        $country = strtoupper(trim((string) ($fields['ct'] ?? '')));
+        if ($country === '') {
+            return $fields;
+        }
+
+        if (array_key_exists('st', $fields)) {
+            $fields['st'] = $this->formatState($fields['st'], $country);
+        }
+        if (array_key_exists('ph', $fields)) {
+            $fields['ph'] = $this->formatPhone($fields['ph'], $country);
+        }
+
+        return $fields;
+    }
+
+    /**
      * Formats a state/province for Namesilo
      *
      * Namesilo accepts alphabetic ISO 3166-2 subdivision codes and plain ASCII state names, but
      * rejects codes containing digits as well as names containing non-ASCII characters or
      * punctuation (including the bracketed alternate names in the states table).
      *
-     * @param string $state The ISO 3166-2 subdivision code
+     * @param string $state The ISO 3166-2 subdivision code, or a state name
      * @param string $country The ISO 3166-1 alpha2 country code
-     * @return string The subdivision code if it is alphabetic (or the country is US/CA),
-     *  otherwise the state name reduced to ASCII letters and spaces
+     * @return string The state reduced to ASCII letters and spaces; subdivision codes containing
+     *  digits are first resolved to the state name (outside US/CA)
      */
     private function formatState($state, $country)
     {
         $state = trim((string) $state);
+        $name = $state;
 
-        // US/CA and alphabetic subdivision codes are accepted by Namesilo as-is
-        if (in_array($country, ['US', 'CA']) || !preg_match('/[0-9]/', $state)) {
-            return $state;
+        // Outside US/CA, resolve subdivision codes containing digits to the state name
+        if (!in_array($country, ['US', 'CA']) && preg_match('/[0-9]/', $name)) {
+            if (!isset($this->States)) {
+                Loader::loadModels($this, ['States']);
+            }
+
+            $name = $this->States->get($country, $name)->name ?? $name;
         }
-
-        if (!isset($this->States)) {
-            Loader::loadModels($this, ['States']);
-        }
-
-        $name = $this->States->get($country, $state)->name ?? '';
 
         // Drop bracketed alternate names, e.g. "Abu Z¸aby [Abu Dhabi]"
         $name = preg_replace('/\[[^\]]*\]/', '', $name);

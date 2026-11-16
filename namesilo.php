@@ -2502,12 +2502,7 @@ class Namesilo extends RegistrarModule
 
         // Make sure a user only edits their own contact
         if (!array_key_exists($post['contact_id'] ?? $get['contact_id'], $contacts)) {
-            $result = $response->response();
-            $message = $result->detail
-                ?? (self::$codes[$response->status()][0] ?? null)
-                ?? Language::_('Namesilo.!error.contact_lookup_failed', true);
-
-            $this->Input->setErrors(['errors' => ['contact' => $message]]);
+            $this->Input->setErrors(['errors' => ['contact' => Language::_('Namesilo.!error.contact_not_found', true)]]);
             return;
         }
 

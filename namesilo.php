@@ -3841,7 +3841,7 @@ class Namesilo extends RegistrarModule
      *
      * @param string $number The phone number
      * @param string $country The ISO 3166-1 alpha2 country code
-     * @return string The 10-digit national number for US/CA, +CC.NSN for every other
+     * @return string +1.NSN for US/CA, +CC.NSN for every other
      *  country, or an empty string if no number was given
      */
     private function formatPhone($number, $country)
@@ -3860,7 +3860,7 @@ class Namesilo extends RegistrarModule
         if (in_array($country, ['US', 'CA'])) {
             $phone_parts = explode('.', $phone, 2);
 
-            return substr(preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone), -10);
+            return '+1.' . substr(preg_replace('/[^0-9]+/', '', $phone_parts[1] ?? $phone), -10);
         }
 
         // Outside US/CA, Namesilo requires the +CC.NSN format

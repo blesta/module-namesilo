@@ -716,7 +716,8 @@ class Namesilo extends RegistrarModule
                 // for .ca domains we need to create a special contact to use
                 if ($tld == '.ca') {
                     $domains = new NamesiloDomains($api);
-                    $response = $domains->addContacts($vars);
+                    // pass fields to make sure special values come through
+                    $response = $domains->addContacts($fields);
                     $this->processResponse($api, $response);
                     if ($this->Input->errors()) {
                         return;
@@ -2416,6 +2417,7 @@ class Namesilo extends RegistrarModule
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
 
+        // Fetch the current contact from Namesilo
         $response = $domains->getContacts(['contact_id' => $contact_id]);
         if ((self::$codes[$response->status()][1] ?? 'fail') == 'fail') {
             $result = $response->response();
@@ -2426,11 +2428,12 @@ class Namesilo extends RegistrarModule
             $this->Input->setErrors(['errors' => ['contact' => $message]]);
             return false;
         }
+        $contact = $response->response()->contact ?? null;
 
         if (!empty($post)) {
-            $response = $domains->updateContacts($post);
-            $this->processResponse($this->api, $response);
-            if ((self::$codes[$response->status()][1] ?? 'fail') != 'fail') {
+            $update_response = $domains->updateContacts($post);
+            $this->processResponse($this->api, $update_response);
+            if ((self::$codes[$update_response->status()][1] ?? 'fail') != 'fail') {
                 $contacts[$contact_id] = $post['fn'] . ' ' . $post['ln'];
                 $this->ModuleClientMeta->set(
                     $service->client_id,
@@ -2442,13 +2445,29 @@ class Namesilo extends RegistrarModule
 
             $vars = (object) $post;
         } else {
-            $vars = $this->formatContact($response->response()->contact, $whois_fields);
+            $vars = $this->formatContact($contact, $whois_fields);
         }
 
         $all_fields = [];
         foreach ($whois_fields as $value) {
             $key = $value['rp'];
             $all_fields[$key] = $value;
+        }
+
+        $service_fields = $this->serviceFieldsToObject($service->fields);
+        $tld = $this->getTld($service_fields->domain);
+        if ($tld == '.ca' || $tld == '.us') {
+            $tld_fields = (array) Configure::get('Namesilo.domain_fields' . $tld);
+
+            // Field definitions go to the field list
+            $all_fields = array_merge($all_fields, $tld_fields);
+
+            // Values go to $vars, as object properties (posted values win over Namesilo's)
+            foreach ($tld_fields as $key => $field) {
+                if (!property_exists($vars, $key)) {
+                    $vars->{$key} = isset($contact->{$key}) ? (string) $contact->{$key} : null;
+                }
+            }
         }
 
         $this->view->set('vars', $vars);
@@ -2576,6 +2595,22 @@ class Namesilo extends RegistrarModule
         foreach ($whois_fields as $value) {
             $key = $value['rp'];
             $all_fields[$key] = $value;
+        }
+
+        $service_fields = $this->serviceFieldsToObject($service->fields);
+        $tld = $this->getTld($service_fields->domain);
+        if ($tld == '.ca' || $tld == '.us') {
+            $tld_fields = (array) Configure::get('Namesilo.domain_fields' . $tld);
+
+            // Field definitions go to the field list
+            $all_fields = array_merge($all_fields, $tld_fields);
+
+            // A new contact has no stored values: keep posted values, leave the rest empty
+            foreach ($tld_fields as $key => $field) {
+                if (!property_exists($vars, $key)) {
+                    $vars->{$key} = null;
+                }
+            }
         }
 
         $this->view->set('vars', $vars);
